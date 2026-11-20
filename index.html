@@ -93,7 +93,7 @@
                 <input type="text" id="search-input-desktop" oninput="handleSearch(this.value)" placeholder="Поиск: пептиды, протеин, бренд..." class="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-xl text-sm outline-none">
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="openSupportModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-700 text-xs sm:text-sm font-medium"><i data-lucide="send" class="w-4 h-4 text-sky-500"></i><span class="hidden sm:inline">Менеджер</span></button>
+                <a href="https://t.me/manager_fitpro" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-iherb-green/30 bg-iherb-light px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold text-iherb-dark hover:bg-iherb-green hover:text-white transition-colors focus-visible:outline-iherb-green"><i data-lucide="message-circle" aria-hidden="true" class="hidden sm:block w-4 h-4"></i><span>Обратная связь</span></a>
                 <button onclick="toggleCart(true)" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-iherb-green text-white text-xs sm:text-sm font-semibold"><i data-lucide="shopping-cart" class="w-4 h-4"></i><span class="hidden sm:inline">Корзина</span><span id="cart-badge" class="bg-white text-iherb-green font-bold text-xs px-1.5 rounded-full">0</span></button>
             </div>
         </div>
@@ -251,7 +251,6 @@
             showToast("Товар добавлен!"); loadStoreData();
         }
         async function deleteProduct(id) { await fetch('/api/products/' + id, { method: 'DELETE' }); showToast("Удалено"); loadStoreData(); }
-        function openSupportModal() { showToast("Менеджер FIT PRO скоро ответит!"); }
         loadStoreData();
     </script>
 <script src="/admin.js?v=33"></script>
