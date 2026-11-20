@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIT PRO. Спортивное питание</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] }, colors: { iherb: { green: '#458500', dark: '#346600', light: '#F1F7EB', accent: '#E87A00', bg: '#F7F8FA', border: '#E5E7EB' } } } } }
+    </script>
+    <style>
+        body { background-color: #F7F8FA; color: #1F2937; -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .product-img-box { background-color: #FFFFFF; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+        .product-img-box img { max-width: 88%; max-height: 88%; object-fit: contain; transition: transform 0.25s ease; }
+        .product-card:hover .product-img-box img { transform: scale(1.04); }
+        .rich-editor { min-height: 110px; outline: none; }
+        .rich-editor:empty:before { content: attr(data-placeholder); color: #9CA3AF; }
+    </style>
+<style id="fp-clean-style">
+  #catalog-grid img, .product-card img {
+    width: 100% !important; height: 180px !important;
+    object-fit: contain !important; background: #fff !important;
+    border-radius: 12px !important; padding: 6px !important;
+  }
+  .fp-store-layout { display: flex; gap: 20px; align-items: flex-start; width: 100%; margin-top: 12px; }
+  .fp-left-sidebar {
+    width: 260px; min-width: 250px; background: #fff;
+    border: 1px solid #e2e8f0; border-radius: 18px; padding: 12px;
+    position: sticky; top: 12px;
+  }
+  .fp-cat-item {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; text-align: left; padding: 8px 12px; border-radius: 10px;
+    font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 2px; cursor: pointer;
+  }
+  .fp-cat-item:hover { background: #f1f5f9; color: #0f172a; }
+  .fp-cat-item.active { background: #65a30d; color: #fff; font-weight: 700; }
+  .fp-main-catalog { flex: 1; min-width: 0; width: 100%; }
+  @media (max-width: 640px) {
+    .fp-store-layout { flex-direction: column; }
+    .fp-left-sidebar { width: 100%; position: static; }
+  }
+</style>
+<style id="fp-uniform-img-css">
+  #catalog-grid img, .product-card img, #modal-img, #product-modal img {
+    width: 100% !important;
+    height: 180px !important;
+    object-fit: contain !important;
+    background: #ffffff !important;
+    border-radius: 12px !important;
+    padding: 6px !important;
+  }
+  #modal-img, #product-modal img { height: 240px !important; }
+</style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+    <div id="admin-top-bar" class="hidden bg-slate-900 text-white text-xs py-2 px-3 sm:px-6 sticky top-0 z-50 shadow-md">
+        <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">FIT PRO Store</span>
+                <span class="hidden md:inline text-slate-400">Пользователь: <strong class="text-white" id="tg-current-user">Гость</strong></span>
+            </div>
+            <div class="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700">
+                <button onclick="switchMainView('store')" id="btn-view-store" class="px-3 py-1 rounded-md font-medium bg-iherb-green text-white shadow-sm">Витрина (Клиент)</button>
+                <button onclick="switchMainView('admin')" id="btn-view-admin" class="px-3 py-1 rounded-md font-medium text-slate-300 hover:text-white flex items-center gap-1.5"><i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-400"></i> Админ-панель</button>
+            </div>
+        </div>
+    </div>
+    <header class="bg-white border-b border-gray-200 sticky top-[38px] z-40">
+        <div class="max-w-6xl mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3">
+            <div class="inline-flex flex-col items-start cursor-pointer shrink-0 select-none" onclick="switchMainView('store'); resetFilters();">
+                <svg viewBox="0 0 236 44" class="h-7 sm:h-8 w-auto overflow-visible" xmlns="http://www.w3.org/2000/svg">
+                    <defs><linearGradient id="fitproWordmarkGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#65A30D"/><stop offset="100%" stop-color="#458500"/></linearGradient></defs>
+                    <g transform="translate(10, 0) skewX(-13)">
+                        <path d="M2 5 H33 V13.5 H13 V19.5 H29 V28 H13 V40 H2 Z" fill="#1E293B"/>
+                        <rect x="37.5" y="5" width="10.5" height="8.5" rx="1.2" fill="url(#fitproWordmarkGrad)"/>
+                        <rect x="37.5" y="17.5" width="10.5" height="22.5" rx="1.2" fill="#1E293B"/>
+                        <path d="M53 5 H87 V13.5 H75.5 V40 H64.5 V13.5 H53 Z" fill="#1E293B"/>
+                        <path d="M101 5 H125.5 C132.5 5 136.5 9 136.5 16 C136.5 23.5 132 27.5 124.5 27.5 H112.5 V40 H101 Z M112.5 13.5 V19 H122.5 C124.8 19 126.2 17.8 126.2 16 C126.2 14.3 124.8 13.5 122.5 13.5 Z" fill="url(#fitproWordmarkGrad)"/>
+                        <path d="M141 5 H166 C173 5 177 8.8 177 15.2 C177 20.2 174.2 23.8 169.5 25.4 L177.5 40 H164.8 L158.2 27 H152.5 V40 H141 Z M152.5 13.5 V19 H163.5 C165.8 19 167.2 17.8 167.2 16 C167.2 14.3 165.8 13.5 163.5 13.5 Z" fill="url(#fitproWordmarkGrad)"/>
+                        <path d="M199 4.2 C212 4.2 219 11.2 219 22.5 C219 33.8 212 40.8 199 40.8 C186 40.8 179 33.8 179 22.5 C179 11.2 186 4.2 199 4.2 Z M199 13.2 C193.2 13.2 190.5 16.5 190.5 22.5 C190.5 28.5 193.2 31.8 199 31.8 C204.8 31.8 207.5 28.5 207.5 22.5 C207.5 16.5 204.8 13.2 199 13.2 Z" fill="url(#fitproWordmarkGrad)"/>
+                    </g>
+                </svg>
+                <span class="text-[9.5px] sm:text-[10.5px] font-bold uppercase tracking-[0.18em] text-[#64748B] mt-0.5 leading-none">СПОРТИВНОЕ ПИТАНИЕ</span>
+            </div>
+            <div class="hidden md:flex flex-1 max-w-md mx-4 relative">
+                <i data-lucide="search" class="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                <input type="text" id="search-input-desktop" oninput="handleSearch(this.value)" placeholder="Поиск: пептиды, протеин, бренд..." class="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-xl text-sm outline-none">
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openSupportModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-gray-700 text-xs sm:text-sm font-medium"><i data-lucide="send" class="w-4 h-4 text-sky-500"></i><span class="hidden sm:inline">Менеджер</span></button>
+                <button onclick="toggleCart(true)" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-iherb-green text-white text-xs sm:text-sm font-semibold"><i data-lucide="shopping-cart" class="w-4 h-4"></i><span class="hidden sm:inline">Корзина</span><span id="cart-badge" class="bg-white text-iherb-green font-bold text-xs px-1.5 rounded-full">0</span></button>
+            </div>
+        </div>
+    </header>
+    <main id="view-store" class="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
+        <div class="bg-white border border-gray-200 rounded-2xl p-3 sm:p-4 mb-5 flex items-center gap-3 shadow-xs">
+            <div class="w-9 h-9 rounded-xl bg-iherb-light text-iherb-green flex items-center justify-center shrink-0"><i data-lucide="check-circle-2" class="w-5 h-5"></i></div>
+            <div><div class="text-xs sm:text-sm font-semibold text-gray-900">Оригинальный спортпит, пептиды и добавки с быстрой отправкой</div><div class="text-[11px] sm:text-xs text-gray-500">Прямые поставки и контроль качества • Быстрое оформление через Telegram</div></div>
+        </div>
+        <div class="mb-3"><div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1" id="category-pills"></div></div>
+        </div>
+        <div id="products-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4"></div>
+        <div id="empty-products" class="hidden text-center py-16 bg-white rounded-2xl border border-gray-200"><h3 class="text-base font-bold text-gray-800">Товары не найдены</h3><button onclick="resetFilters()" class="mt-4 px-4 py-2 bg-iherb-green text-white text-sm font-medium rounded-xl">Показать все товары</button></div>
+    </main>
+    <section id="view-admin" class="hidden flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-5">
+        <div class="bg-slate-900 text-white rounded-2xl p-4 mb-5 flex justify-between items-center">
+            <div><div class="font-bold text-base">Панель управления FIT PRO</div><p class="text-xs text-slate-300">Синхронизация с базой Supabase</p></div>
+            <div class="text-xs text-slate-300">Клиентов: <strong class="text-emerald-400" id="crm-count-badge">0</strong></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
+                <h2 class="text-base font-bold text-gray-900 mb-4">Добавить новый товар</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="sm:col-span-2"><label class="block text-xs font-semibold mb-1">Название *</label><input type="text" id="new-prod-title" class="w-full px-3 py-2 rounded-xl border text-sm"></div>
+                    <div><label class="block text-xs font-semibold mb-1">Категория</label><select id="new-prod-category" class="w-full px-3 py-2 rounded-xl border text-sm bg-white"></select></div>
+                    
+                    <div><label class="block text-xs font-semibold mb-1">Цена (RUB) *</label><input type="number" id="new-prod-price" class="w-full px-3 py-2 rounded-xl border text-sm"></div>
+                    <div><label class="block text-xs font-semibold mb-1">Код товара *</label><input type="text" id="new-prod-sku" required placeholder="FP-105" class="w-full px-3 py-2 rounded-xl border text-sm"></div>
+                    <div class="sm:col-span-2"><label class="block text-xs font-semibold mb-1">Фото товара (файл или ссылка)</label><div class="flex gap-2 items-center"><input type="file" id="new-prod-img-file" accept="image/*" onchange="uploadProdImg(this, \'new-prod-img\')" class="text-xs border border-gray-200 rounded-xl p-1.5 bg-white shrink-0 max-w-[210px]"><input type="text" id="new-prod-img" placeholder="https://..." class="w-full px-3 py-2 rounded-xl border text-sm"></div></div>
+                    <div class="sm:col-span-2"><label class="block text-xs font-semibold mb-1">Описание</label><div id="new-prod-desc" contenteditable="true" class="rich-editor p-3 text-sm border rounded-xl"></div></div>
+                </div>
+                <button onclick="createNewProduct()" class="mt-4 px-6 py-2.5 bg-iherb-green text-white font-semibold text-sm rounded-xl">Опубликовать товар</button>
+            </div>
+            <div class="space-y-5">
+                <div class="bg-white rounded-2xl border p-4"><h3 class="text-sm font-bold mb-2">Категории</h3><div class="flex gap-2 mb-2"><input type="text" id="new-cat-input" class="flex-1 px-3 py-1.5 rounded-xl border text-xs"><button onclick="addCategory()" class="px-3 py-1.5 bg-iherb-green text-white rounded-xl text-xs">Добавить</button></div><div id="admin-categories-list" class="space-y-1"></div></div>
+            </div>
+        </div>
+        <div class="bg-white rounded-2xl border p-4"><h3 class="text-sm font-bold mb-3">Товары в базе</h3><table class="w-full text-left text-xs"><tbody id="admin-products-table" class="divide-y"></tbody></table></div>
+    </section>
+    <div id="product-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-3">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5">
+            <div class="flex justify-between items-center mb-3"><span id="modal-prod-brand" class="text-xs font-bold text-iherb-green bg-iherb-light px-2.5 py-1 rounded-lg"></span><button onclick="closeProductModal()" class="text-gray-500 font-bold text-lg">X</button></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div class="product-img-box h-60 rounded-2xl border p-3"><img id="modal-prod-img" src=""></div>
+                <div><div class="text-xs text-gray-400" id="modal-prod-cat"></div><h2 id="modal-prod-title" class="text-lg font-extrabold mt-1"></h2><div id="modal-prod-price" class="text-2xl font-extrabold mt-2"></div><div id="modal-prod-desc" class="text-xs text-gray-600 mt-3"></div><div id="modal-action-area" class="mt-5"></div></div>
+            </div>
+        </div>
+    </div>
+    <div id="cart-drawer" class="fixed inset-0 bg-black/50 z-50 hidden justify-end">
+        <div class="bg-white w-full max-w-md h-full flex flex-col">
+            <div class="px-4 py-3.5 border-b flex justify-between items-center"><h2 class="font-bold text-base">Ваш заказ в FIT PRO</h2><button onclick="toggleCart(false)" class="text-gray-500 font-bold text-lg">X</button></div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                <div id="cart-items-list" class="space-y-3"></div>
+                <div class="bg-gray-50 border rounded-2xl p-4 space-y-3">
+                    <input type="text" id="order-name" placeholder="Ваше Имя *" class="w-full px-3 py-2 rounded-xl border text-sm bg-white">
+                    <input type="text" id="order-tg" placeholder="Ник в Telegram (@username) *" class="w-full px-3 py-2 rounded-xl border text-sm bg-white">
+                    <div class="flex gap-2"><input type="text" id="order-promo" placeholder="Промокод (FIT10)" class="flex-1 px-3 py-2 rounded-xl border text-sm bg-white uppercase"><button type="button" onclick="applyPromoFromInput()" class="px-3 py-2 bg-gray-800 text-white text-xs font-semibold rounded-xl">ОК</button></div>
+                    <p id="promo-status-msg" class="text-[11px] hidden"></p>
+                </div>
+            </div>
+            <div class="p-4 border-t bg-white space-y-2.5"><div class="flex justify-between font-extrabold"><span>Итого:</span><span id="cart-total">0 ₽</span></div><button onclick="submitOrder()" class="w-full py-3 bg-iherb-green text-white font-bold text-sm rounded-xl">Оформить заказ</button></div>
+        </div>
+    </div>
+    <div id="toast-box" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 hidden"><div class="bg-gray-900 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg"><span id="toast-text">Готово</span></div></div>
+    <script>
+        let categories = ["Все", "Пептиды", "Протеин", "Аминокислоты и БЦАА", "Витамины и Омега", "Расходники и аксессуары"];
+        let brands = ["Все бренды", "GLEID", "PharmGrade", "Optimum Nutrition", "BioTechUSA", "Now Foods"];
+        let products = [], selectedCategory = "Все", selectedBrand = "Все бренды", searchQuery = "";
+        let selectedFlavorByProduct = {}, cart = [], activePromo = null;
+
+        if (window.Telegram && window.Telegram.WebApp) {
+            const twa = window.Telegram.WebApp; twa.ready(); twa.expand();
+            if (twa.initDataUnsafe && twa.initDataUnsafe.user) {
+                const u = twa.initDataUnsafe.user, un = u.username ? "@" + u.username : "";
+                document.getElementById('tg-current-user').textContent = `${un || u.first_name} (ID: ${u.id})`; if (Number(u.id) === 5621946955) document.getElementById('admin-top-bar')?.classList.remove('hidden');
+                document.getElementById('order-name').value = u.first_name || "";
+                document.getElementById('order-tg').value = un || String(u.id);
+            }
+        }
+        async function loadStoreData() {
+            const res = await fetch('/api/init'), data = await res.json();
+            products = (data.products || []).map(p => ({
+                id: p.id, sku: p.sku || `FP-${p.id}`, title: p.title, category: p.category || "Пептиды",
+                brand: p.brand || "GLEID", price: Number(p.price),
+                img: p.image_url || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=500&q=80",
+                description: p.description || "", flavors: Array.isArray(p.flavors) && p.flavors.length ? p.flavors : [{ name: "Стандарт", stock: 10 }]
+            }));
+            products.forEach(p => { selectedFlavorByProduct[p.id] = 0; });
+            document.getElementById('crm-count-badge').textContent = (data.clients || []).length;
+            renderFilters(); renderProducts(); updateCartUI(); renderAdminTables();
+        }
+        function renderFilters() {
+            document.getElementById('category-pills').innerHTML = categories.map(c => `<button onclick="selectCategory('${c}')" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap ${c===selectedCategory?'bg-iherb-green text-white':'bg-white text-gray-700 border'}">${c}</button>`).join('');
+            document.getElementById('brand-pills').innerHTML = brands.map(b => `<button onclick="selectBrand('${b}')" class="px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap ${b===selectedBrand?'bg-gray-900 text-white':'bg-gray-100 text-gray-700'}">${b}</button>`).join('');
+        }
+        function selectCategory(c) { selectedCategory = c; renderFilters(); renderProducts(); }
+        function selectBrand(b) { selectedBrand = b; renderFilters(); renderProducts(); }
+        function handleSearch(v) { searchQuery = v.trim().toLowerCase(); renderProducts(); }
+        function resetFilters() { selectedCategory = "Все"; selectedBrand = "Все бренды"; searchQuery = ""; renderFilters(); renderProducts(); }
+        function renderProducts() {
+            const grid = document.getElementById('products-grid'), emptyBox = document.getElementById('empty-products');
+            const filtered = products.filter(p => (selectedCategory === "Все" || p.category === selectedCategory) && (selectedBrand === "Все бренды" || p.brand === selectedBrand) && (!searchQuery || p.title.toLowerCase().includes(searchQuery) || p.brand.toLowerCase().includes(searchQuery)));
+            if (!filtered.length) { grid.innerHTML = ''; emptyBox.classList.remove('hidden'); return; }
+            emptyBox.classList.add('hidden');
+            grid.innerHTML = filtered.map(p => `<div onclick="openProductModal(${p.id})" class="product-card bg-white rounded-2xl border border-gray-200 hover:border-iherb-green/60 hover:shadow-md transition-all flex flex-col justify-between overflow-hidden cursor-pointer"><div><div class="product-img-box h-40 sm:h-48 border-b border-gray-100 p-3"><img src="${p.img}"><span class="absolute top-2.5 left-2.5 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-700">${p.brand}</span></div><div class="p-3"><div class="text-[11px] text-gray-400">${p.category}</div><h3 class="text-xs sm:text-sm font-bold text-gray-900 line-clamp-2 min-h-[2.4rem]">${p.title}</h3></div></div><div class="px-3 pb-3 pt-1"><div class="flex items-center justify-between mb-2"><span class="text-base sm:text-lg font-extrabold text-gray-900">${p.price.toLocaleString('ru-RU')} RUB</span><span class="text-[11px] text-emerald-600 font-medium">В наличии</span></div><button type="button" onclick="addToCart(event,${p.id},0)" class="w-full py-2 px-3 bg-iherb-green hover:bg-iherb-dark text-white text-xs font-bold rounded-xl">В корзину</button></div></div>`).join('');
+            lucide.createIcons();
+        }
+        function openProductModal(id) {
+            const p = products.find(x => x.id === id); if (!p) return;
+            document.getElementById('modal-prod-brand').textContent = p.brand;
+            document.getElementById('modal-prod-cat').textContent = p.category;
+            document.getElementById('modal-prod-title').textContent = p.title;
+            document.getElementById('modal-prod-price').textContent = p.price.toLocaleString('ru-RU') + " RUB";
+            document.getElementById('modal-prod-desc').innerHTML = p.description;
+            document.getElementById('modal-prod-img').src = p.img;
+            document.getElementById('modal-action-area').innerHTML = `<button onclick="addToCart(null,${p.id},0);closeProductModal();" class="w-full py-3 bg-iherb-green text-white font-bold text-sm rounded-xl">Добавить в корзину</button>`;
+            document.getElementById('product-modal').classList.replace('hidden', 'flex');
+        }
+        function closeProductModal() { document.getElementById('product-modal').classList.replace('flex', 'hidden'); }
+        function toggleCart(s) { const d = document.getElementById('cart-drawer'); s ? d.classList.replace('hidden', 'flex') : d.classList.replace('flex', 'hidden'); }
+        function showToast(t) { const b = document.getElementById('toast-box'); document.getElementById('toast-text').textContent = t; b.classList.remove('hidden'); setTimeout(() => b.classList.add('hidden'), 2500); }
+        function addToCart(e, id, idx) {
+            if (e) e.stopPropagation();
+            const p = products.find(x => x.id === id); if (!p) return;
+            const ex = cart.find(x => x.id === id);
+            ex ? ex.qty++ : cart.push({ id: p.id, title: p.title, price: p.price, flavor: "Стандарт", qty: 1 });
+            updateCartUI(); showToast("Добавлено: " + p.title);
+        }
+        function updateCartUI() {
+            const count = cart.reduce((s, i) => s + i.qty, 0), total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+            document.getElementById('cart-badge').textContent = count;
+            document.getElementById('cart-total').textContent = total.toLocaleString('ru-RU') + " RUB";
+            document.getElementById('cart-items-list').innerHTML = cart.map((i, idx) => `<div class="flex justify-between items-center border-b pb-2 text-xs"><div><b>${i.title}</b> (${i.qty} шт.)</div><button onclick="cart.splice(${idx},1);updateCartUI();" class="text-red-500">Удалить</button></div>`).join('') || '<div class="text-xs text-gray-400 text-center py-4">Корзина пуста</div>';
+        }
+        async function submitOrder() {
+            const name = document.getElementById('order-name').value.trim(), tg = document.getElementById('order-tg').value.trim();
+            if (!cart.length || !name || !tg) return showToast("Заполните корзину, имя и Telegram!");
+            const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
+            await fetch('/api/order', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name, tg, source: "Telegram Mini App", items: cart, total }) });
+            cart = []; updateCartUI(); toggleCart(false); showToast("Заказ отправлен менеджеру!");
+        }
+        function switchMainView(v) {
+            document.getElementById('view-store').classList.toggle('hidden', v !== 'store');
+            document.getElementById('view-admin').classList.toggle('hidden', v !== 'admin');
+        }
+        function renderAdminTables() {
+            document.getElementById('new-prod-category').innerHTML = categories.slice(1).map(c => `<option>${c}</option>`).join('');
+            document.getElementById('new-prod-brand').innerHTML = brands.slice(1).map(b => `<option>${b}</option>`).join('');
+            document.getElementById('admin-products-table').innerHTML = products.map(p => `<tr><td class="py-2 font-bold">${p.title}</td><td>${p.price} RUB</td><td><button onclick="deleteProduct(${p.id})" class="text-red-500">Удалить</button></td></tr>`).join('');
+        }
+        async function createNewProduct() {
+            const title = document.getElementById('new-prod-title').value.trim(), price = Number(document.getElementById('new-prod-price').value);
+            if (!title || !price) return showToast("Заполните название и цену!");
+            await fetch('/api/products', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, category: document.getElementById('new-prod-category').value, brand: document.getElementById('new-prod-brand').value, price, sku: document.getElementById('new-prod-sku').value, image_url: document.getElementById('new-prod-img').value, description: document.getElementById('new-prod-desc').innerHTML, flavors: [{name: "Стандарт", stock: 10}] }) });
+            showToast("Товар добавлен!"); loadStoreData();
+        }
+        async function deleteProduct(id) { await fetch('/api/products/' + id, { method: 'DELETE' }); showToast("Удалено"); loadStoreData(); }
+        function openSupportModal() { showToast("Менеджер FIT PRO скоро ответит!"); }
+        loadStoreData();
+    </script>
+<script src="/admin.js?v=33"></script>
+</body>
+</html>
