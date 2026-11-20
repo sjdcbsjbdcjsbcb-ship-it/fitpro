@@ -281,16 +281,44 @@ def ports():
                 result.add(int(cols[1].split(':')[1],16))
     return result
 
+def protect_entry(source):
+    if "def fitpro_admin_session(" in source:
+        return source
+    tree = ast.parse(source)
+    index = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "index")
+    decorator, = index.decorator_list
+    if ast.unparse(decorator) != "app.get('/')":
+        raise ValueError("Unexpected storefront route")
+    replacement = """def require_admin_entry(req: Request):
+    if 'admin' in req.query_params or 'admin_tab' in req.query_params:
+        check_admin(req)
+
+@app.get('/api/admin/session', dependencies=[_Depends(check_admin)], include_in_schema=False)
+def fitpro_admin_session():
+    return {'authenticated': True}
+
+@app.get('/', dependencies=[_Depends(require_admin_entry)])"""
+    lines = source.splitlines(keepends=True)
+    lines[decorator.lineno-1:decorator.end_lineno] = [replacement+'\n']
+    result = ''.join(lines)
+    compile(result, 'main.py', 'exec')
+    return result
+
+
+def challenges(port, path):
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}'+path, timeout=1):
+            return False
+    except HTTPError as error:
+        return error.code == 401 and 'FIT PRO' in error.headers.get('WWW-Authenticate','')
+
+
 def check():
     for _ in range(20):
         try:
             for port in ports():
-                try:
-                    with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/admin/catalog',timeout=1):
-                        continue
-                except HTTPError as e:
-                    if e.code==401 and 'FIT PRO' in e.headers.get('WWW-Authenticate',''):
-                        return
+                if all(challenges(port, path) for path in ('/?admin=1','/api/admin/session','/api/admin/catalog')):
+                    return
         except (OSError,URLError,ValueError,IndexError):
             pass
         time.sleep(0.5)
@@ -298,11 +326,12 @@ def check():
 
 def main():
     old={p:p.read_bytes() for p in (API,JS)}
-    if b'def secure_admin_catalog(' in old[API]:
+    if b'def fitpro_admin_session(' in old[API]:
         check()
-        print('FITPRO_SECURITY_READY')
+        print('FITPRO_ADMIN_LOGIN_READY')
         return
-    updated=transform(old[API].decode())
+    previous = old[API].decode()
+    updated = protect_entry(previous if 'def secure_admin_catalog(' in previous else transform(previous))
     js=old[JS].decode()
     if 'loadAllAdminData' not in js:
         raise ValueError('Unsupported admin client')
@@ -319,7 +348,8 @@ def main():
         shutil.copy2(path,backup/path.name)
     print('Backup:',backup,flush=True)
     try:
-        write(JS,(CLIENT+'\n'+js).encode())
+        if '// FIT PRO protected API transport' not in js:
+            write(JS,(CLIENT+'\n'+js).encode())
         write(API,updated.encode())
         subprocess.run(['systemctl','restart','fitpro'],check=True)
         check()
@@ -328,7 +358,8 @@ def main():
             write(p,data)
         subprocess.run(['systemctl','restart','fitpro'],check=True)
         raise
-    print('FITPRO_SECURITY_READY')
+    print('FITPRO_ADMIN_LOGIN_READY')
 
 if __name__=='__main__':
     main()
+
