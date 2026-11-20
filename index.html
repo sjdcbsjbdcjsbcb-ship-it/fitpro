@@ -498,10 +498,25 @@ function renderStockGrid() {
         card.append(detail,footer);grid.append(card);
     }
 }
+    function descriptionHTML(html) {
+        const source=document.createElement('template'), clean=document.createElement('div');
+        source.innerHTML=html;
+        function copy(node,parent) {
+            if (node.nodeType===Node.TEXT_NODE) {parent.append(document.createTextNode(node.data));return;}
+            if (node.nodeType!==Node.ELEMENT_NODE || ['SCRIPT','STYLE','IFRAME','OBJECT'].includes(node.tagName)) return;
+            let target=parent;
+            if (['B','STRONG','U','BR','P','DIV','I','EM','UL','OL','LI'].includes(node.tagName)) {
+                target=document.createElement(node.tagName.toLowerCase());parent.append(target);
+            }
+            for (const child of node.childNodes) copy(child,target);
+        }
+        for (const node of source.content.childNodes) copy(node,clean);
+        return clean.innerHTML;
+    }
 function openProductModal(id, initialPhoto=0) {
     const p=storeItem(id);if(!p)return;
     for(const [field,val] of Object.entries({brand:p.brand,cat:p.category,title:p.title,price:p.price.toLocaleString('ru-RU')+' ₽'}))byId('modal-prod-'+field).textContent=val;
-    byId('modal-prod-desc').innerHTML=p.description;byId('modal-gallery').replaceChildren(productGallery(p,initialPhoto));
+    byId('modal-prod-desc').innerHTML=descriptionHTML(p.description||'');byId('modal-gallery').replaceChildren(productGallery(p,initialPhoto));
     const area=byId('modal-action-area');area.replaceChildren();
     const spec=featureLine(specOf(p));if(spec)area.append(node('div',spec,'text-sm text-gray-600'));
     area.append(availabilityBadge(p));
@@ -569,13 +584,35 @@ function openProductModal(id, initialPhoto=0) {
         loadStoreData();
     </script>
 <script src="/admin.js?v=34"></script>
-<script>window.renderStorefrontGrid=renderStockGrid;window.renderProducts=renderStockGrid;</script>
+<script>
+window.renderStorefrontGrid=renderStockGrid;
+window.renderProducts=renderStockGrid;
+window.renderLeftSidebar=function(){
+    const grid=byId('products-grid');
+    let sidebar=byId('fp-left-sidebar');
+    if(!sidebar){
+        const layout=node('div',null,'fp-store-layout');layout.id='fp-store-layout';
+        sidebar=node('aside',null,'fp-left-sidebar');sidebar.id='fp-left-sidebar';
+        const main=node('div',null,'fp-main-catalog');
+        grid.before(layout);layout.append(sidebar,main);main.append(grid);
+    }
+    const visible=adminState.products.filter(shownInStore);
+    const counts=new Map();
+    for(const p of visible) counts.set(p.category,(counts.get(p.category)||0)+1);
+    sidebar.replaceChildren(node('div','Категории','text-xs font-bold text-slate-400 px-3 pb-2 uppercase'));
+    function appendFilter(value,label,count){
+        const b=action('',()=>selectStorefrontCat(value),'fp-cat-item'+(adminState.activeCat===value?' active':''));
+        b.append(node('span',label),node('span',count,'text-xs opacity-75'));sidebar.append(b);
+    }
+    appendFilter('ALL','Все товары',visible.length);
+    for(const cat of adminState.categories)appendFilter(cat,cat,counts.get(cat)||0);
+};
+</script>
 <script>
 (() => {
     const el = id => document.getElementById(id);
     const form = el('item-form'), editor = el('item-description');
     const itemDialog = el('item-dialog'), catDialog = el('cat-dialog');
-    let initialDescription = '';
     let editing = null, photo = '', pendingPhoto = null, photoVersion = 0, saving = false;
     const lower = value => String(value ?? '').trim().toLocaleLowerCase('ru');
     function optionList(select, values, first, selected) {
@@ -739,21 +776,6 @@ function openProductModal(id, initialPhoto=0) {
         if (adminState.categories.some(c=>lower(c)===lower(name))) {el('cat-status').textContent='Такая категория уже есть.';return;}
         if (await updateCategories([...adminState.categories,name])) el('cat-name').value='';
     };
-    function descriptionHTML(html) {
-        const source=document.createElement('template'), clean=document.createElement('div');
-        source.innerHTML=html;
-        function copy(node,parent) {
-            if (node.nodeType===Node.TEXT_NODE) {parent.append(document.createTextNode(node.data));return;}
-            if (node.nodeType!==Node.ELEMENT_NODE || ['SCRIPT','STYLE','IFRAME','OBJECT'].includes(node.tagName)) return;
-            let target=parent;
-            if (['B','STRONG','U','BR','P','DIV','I','EM','UL','OL','LI'].includes(node.tagName)) {
-                target=document.createElement(node.tagName.toLowerCase());parent.append(target);
-            }
-            for (const child of node.childNodes) copy(child,target);
-        }
-        for (const node of source.content.childNodes) copy(node,clean);
-        return clean.innerHTML;
-    }
     form.querySelectorAll('[data-format]').forEach(b=>{
         b.onmousedown=e=>e.preventDefault();
         b.onclick=()=>{editor.focus();document.execCommand('styleWithCSS',false,false);document.execCommand(b.dataset.format);};
@@ -783,7 +805,6 @@ function openProductModal(id, initialPhoto=0) {
         el('spec-expected').checked=!!(spec.expected||spec.eta);
         el('item-specs').open=!!featureLine(spec);el('arrival-options').open=el('spec-expected').checked;
         editor.innerHTML=descriptionHTML(product?.description||'');
-        initialDescription=editor.innerHTML;
         photo=product?.image_url||'';preview(photo);
         el('item-url').value=photo;el('item-status').textContent='';itemDialog.showModal();el('item-sku').focus();
     }
@@ -858,7 +879,6 @@ function openProductModal(id, initialPhoto=0) {
             }
             const body={title,sku,category:el('item-category').value,price:Number(el('item-price').value),
                 image_url:photo,description:descriptionHTML(editor.innerHTML)};
-            if(editing && editor.innerHTML===initialDescription) body.description=editing.description||'';
             const stock=Number(el('item-stock').value);
             if(!editing) Object.assign(body,{brand:'FIT PRO',in_stock:stock>0,flavors:[{name:'Стандарт',stock}]});
             else Object.assign(body,{in_stock:editing.in_stock,flavors:editing.flavors,brand:editing.brand});
