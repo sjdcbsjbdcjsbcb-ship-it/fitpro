@@ -242,7 +242,7 @@
             <p class="text-sm text-gray-600 my-2">Нужны код товара и остаток. Для новых товаров укажите название и цену. Отметьте строки для сохранения.</p>
             <div id="inventory-controls" hidden><div class="catalog-fields"><label>Лист<select id="inventory-sheet"></select></label><label>Заголовки<select id="inventory-header"></select></label></div>
             <details><summary>Сопоставить столбцы</summary><div class="catalog-fields" id="inventory-map"></div></details></div>
-            <p id="inventory-summary" class="my-3"></p><div class="overflow-auto" style="max-height:45vh"><table class="w-full text-left text-sm"><thead><tr><th>Выбор</th><th>Код</th><th>Товар</th><th>Остаток</th><th>Результат</th></tr></thead><tbody id="inventory-rows"></tbody></table></div>
+            <p id="inventory-summary" class="my-3"></p><div class="overflow-auto" style="max-height:45vh"><table class="w-full text-left text-sm"><thead><tr><th>Выбор</th><th>Код</th><th>Наименование</th><th>Остаток</th><th>Цена</th><th>Результат</th></tr></thead><tbody id="inventory-rows"></tbody></table></div>
             <p id="inventory-msg" role="status"></p><button type="button" class="primary" id="inventory-apply" disabled>Применить</button>
         </div></dialog>
         <dialog id="item-dialog" class="catalog-dialog" aria-labelledby="item-heading">
@@ -1226,6 +1226,14 @@ function warehouseRows(rows, cols, headers){
         return !group && !(!code && /^итого:?$/i.test(title));
     });
 }
+function warehouseHeaders(rows) {
+    // Four-column warehouse exports can start directly with a product.
+    const hasHeader=rows.slice(0,50).some(r=>columnFor(r.values,'sku')>=0 && columnFor(r.values,'stock')>=0);
+    const looksLikeProduct=r=>r.values.length===4 && String(r.values[0]??'').trim() && String(r.values[1]??'').trim() &&
+        /^\d+(?:[.,]0+)?$/.test(String(r.values[2]??'').trim()) && /^\d+(?:[.,]\d+)?$/.test(String(r.values[3]??'').replace(/\s/g,''));
+    if(!hasHeader && rows.some(looksLikeProduct))return [{number:0,values:['Код','Наименование','Остаток','Цена']},...rows];
+    return rows;
+}
 function skuIndex(items) {
     const map=new Map();
     for(const p of items){const key=normSku(p.sku);if(key)map.set(key,[...(map.get(key)||[]),p]);}
@@ -1272,9 +1280,11 @@ function inventoryPlan(rows,cols,items){
             const tr=node('tr'),check=node('input');check.type='checkbox';check.checked=!r.error&&!r.same&&r.chosen;check.disabled=!!r.error||!!r.same;check.ariaLabel='Применить строку '+r.number;
             const td=node('td');td.append(check);tr.append(td,node('td',r.sku||'—'),node('td',r.newName||r.p?.title||'Новый товар'),node('td',r.error?'—':(r.p?r.before:'—')+' → '+r.qty));
             const detail=node('td',r.error||(r.same?'Без изменений':r.p?'Обновить':'Добавить товар?'));
-            if(r.p&&!r.error && r.newPrice && Number(r.newPrice)!==Number(r.p.price))detail.append(node('small','Цена: '+r.p.price+' → '+r.newPrice+' ₽'));
+            const price=r.newPrice || r.p?.price;
+            tr.append(node('td',price==null||price===''?'—':Number(price).toLocaleString('ru-RU')+' ₽'));
             if(!r.p&&!r.error){
                 for(const [key,label] of [['newName','Наименование'],['newPrice','Цена, ₽']]){
+                    if(r[key])continue;
                     const input=node('input');input.placeholder=label;input.ariaLabel=label+' для '+r.sku;input.value=r[key];input.oninput=()=>{r[key]=input.value.trim();};detail.append(input);
                 }
             }
@@ -1299,9 +1309,9 @@ function inventoryPlan(rows,cols,items){
     async function setSheet(){
         const seq=++version;apply.disabled=true;list.replaceChildren();plans=[];
         try {
-            const result=await book.rows(Number(sheet.value));if(seq!==version)return;rows=result;
+            const result=await book.rows(Number(sheet.value));if(seq!==version)return;rows=warehouseHeaders(result);
             if(!rows.length)throw Error('Лист пуст.');
-            header.replaceChildren(...rows.slice(0,50).map((r,i)=>new Option('Строка '+r.number+' — '+r.values.filter(Boolean).slice(0,3).join(' / '),i)));
+            header.replaceChildren(...rows.slice(0,50).map((r,i)=>new Option(r.number===0?'Без заголовков · Код / Наименование / Остаток / Цена':'Строка '+r.number+' — '+r.values.filter(Boolean).slice(0,3).join(' / '),i)));
             header.selectedIndex=Math.max(0,rows.slice(0,50).findIndex(r=>columnFor(r.values,'sku')>=0&&columnFor(r.values,'stock')>=0));
             setMap();
         }catch(e){msg.textContent=e.message;plans=[];draw();}
