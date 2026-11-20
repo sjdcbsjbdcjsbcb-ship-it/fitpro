@@ -73,6 +73,46 @@
   }
   #modal-img, #product-modal img { height: 240px !important; }
 </style>
+<style>
+.catalog-workspace {padding:clamp(16px,3vw,28px);background:white;border:1px solid #dce3e8;border-radius:16px;color:#172338;font-size:14px}
+.catalog-workspace h2 {font-size:20px;font-weight:700;line-height:1.25}
+.catalog-head,.catalog-actions,.catalog-row {display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.catalog-head,.catalog-row {justify-content:space-between}
+.catalog-head {margin-bottom:16px}
+.catalog-workspace input:not([type=file]),.catalog-workspace select,#item-description {border:1px solid #cbd5df;border-radius:8px;background:white;padding:9px 11px;width:100%;min-width:0;font-weight:400}
+.catalog-workspace label {display:grid;gap:5px;font-weight:600;font-size:13px}
+.catalog-workspace button,.catalog-workspace summary {cursor:pointer}
+.catalog-workspace button {border:1px solid #dce3e8;background:white;border-radius:8px;padding:7px 10px;font-size:13px;font-weight:600}
+.catalog-workspace button:hover {background:#f0f5ea}
+.catalog-workspace button.primary {background:#48770a;color:white;border-color:#48770a}
+.catalog-workspace button:disabled {opacity:.55}
+.catalog-workspace :focus-visible {outline:2px solid #558418;outline-offset:2px}
+.catalog-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.catalog-row {padding:11px 0;border-top:1px solid #e5e9ef}
+.item-identity {display:flex;align-items:center;gap:12px;flex:1;min-width:140px;overflow-wrap:anywhere}
+.item-identity img,.item-identity .blank-thumb {width:48px;height:48px;object-fit:contain;border:1px solid #e4e9e1;border-radius:8px;background:white;flex:none}
+.catalog-workspace small {display:block;color:#526175}
+.catalog-dialog {padding:0;border:0;border-radius:16px;width:min(590px,calc(100% - 24px));max-height:90dvh;margin:auto}
+.catalog-dialog::backdrop {background:rgb(15 23 42 / .48)}
+.catalog-dialog .catalog-workspace {border:0}
+.format-bar {display:flex;gap:4px;margin:6px 0}
+#item-description {min-height:86px;white-space:pre-wrap}
+#item-description b,#item-description strong {font-weight:700}
+.item-photo {display:flex;align-items:center;gap:14px;margin:16px 0}
+.item-photo>div {min-width:0}.item-photo input {max-width:100%}
+.photo-frame {display:grid;place-items:center;flex:none;width:88px;height:88px;border:1px solid #dce3e8;border-radius:10px;color:#657282;font-size:12px}
+.photo-frame img {width:100%;height:100%;object-fit:contain}
+.catalog-workspace [hidden] {display:none!important}
+#cat-list {max-height:45vh;overflow:auto;margin:12px 0}
+#cat-form input {flex:1;min-width:120px}
+.catalog-workspace [role=status]:not(:empty) {color:#a32823;margin:10px 0}
+.product-card img,#product-modal img {image-orientation:from-image}
+@media(max-width:560px){.catalog-fields {grid-template-columns:1fr}.catalog-row .catalog-actions {gap:4px}.catalog-workspace button {padding:7px 8px}}
+#stock-options {margin-bottom:14px;color:#526175}
+#stock-options label {max-width:180px;margin-top:6px}
+#catalog-grid .product-card img,#products-grid .product-card img {height:auto!important;aspect-ratio:1/1;object-fit:contain!important;background:white}
+#products-grid .product-img-box {height:auto;aspect-ratio:1/1}
+</style>
 </head>
 <body class="antialiased min-h-screen flex flex-col">
     <div id="admin-top-bar" class="hidden bg-slate-900 text-white text-xs py-2 px-3 sm:px-6 sticky top-0 z-50 shadow-md">
@@ -129,25 +169,37 @@
             <div><h1>Панель управления FIT PRO</h1><p class="text-xs text-slate-300">Синхронизация с базой Supabase</p></div>
             <div class="admin-client-count">Клиентов: <strong id="crm-count-badge">—</strong></div>
         </div>
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
-                <h2 class="text-base font-bold text-gray-900 mb-4">Добавить новый товар</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="sm:col-span-2"><label class="block text-xs font-semibold mb-1">Название *</label><input type="text" id="new-prod-title" class="w-full px-3 py-2 rounded-xl border text-sm"></div>
-                    <div><label class="block text-xs font-semibold mb-1">Категория</label><select id="new-prod-category" class="w-full px-3 py-2 rounded-xl border text-sm bg-white"></select></div>
-                    
-                    <div><label class="block text-xs font-semibold mb-1">Цена (RUB) *</label><input type="number" id="new-prod-price" class="w-full px-3 py-2 rounded-xl border text-sm"></div>
-                    <div><label class="block text-xs font-semibold mb-1">Код товара *</label><input type="text" id="new-prod-sku" required placeholder="FP-105" class="w-full px-3 py-2 rounded-xl border text-sm"></div>
-                    <div class="sm:col-span-2"><label class="block text-xs font-semibold mb-1">Фото товара (файл или ссылка)</label><div class="flex gap-2 items-center"><input type="file" id="new-prod-img-file" accept="image/*" onchange="uploadProdImg(this, \'new-prod-img\')" class="text-xs border border-gray-200 rounded-xl p-1.5 bg-white shrink-0 max-w-[210px]"><input type="text" id="new-prod-img" placeholder="https://..." class="w-full px-3 py-2 rounded-xl border text-sm"></div></div>
-                    <div class="sm:col-span-2"><label class="block text-xs font-semibold mb-1">Описание</label><div id="new-prod-desc" contenteditable="true" class="rich-editor p-3 text-sm border rounded-xl"></div></div>
-                </div>
-                <button onclick="createNewProduct()" class="mt-4 px-6 py-2.5 bg-iherb-green text-white font-semibold text-sm rounded-xl">Опубликовать товар</button>
-            </div>
-            <div class="space-y-5">
-                <div class="bg-white rounded-2xl border p-4"><h3 class="text-sm font-bold mb-2">Категории</h3><div class="flex gap-2 mb-2"><input type="text" id="new-cat-input" class="flex-1 px-3 py-1.5 rounded-xl border text-xs"><button onclick="addCategory()" class="px-3 py-1.5 bg-iherb-green text-white rounded-xl text-xs">Добавить</button></div><div id="admin-categories-list" class="space-y-1"></div></div>
-            </div>
+        <div class="catalog-workspace">
+            <div class="catalog-head"><h2>Товары</h2><div class="catalog-actions"><button id="manage-cats" type="button">Категории</button><button id="add-item" type="button" class="primary">Добавить товар</button></div></div>
+            <div class="catalog-fields"><input id="item-search" type="search" aria-label="Поиск по названию или коду" placeholder="Название или код товара"><select id="item-filter" aria-label="Фильтр по категории"></select></div>
+            <div id="item-list"></div>
         </div>
-        <div class="bg-white rounded-2xl border p-4"><h3 class="text-sm font-bold mb-3">Товары в базе</h3><table class="w-full text-left text-xs"><tbody id="admin-products-table" class="divide-y"></tbody></table></div>
+        <dialog id="item-dialog" class="catalog-dialog" aria-labelledby="item-heading">
+            <form id="item-form" class="catalog-workspace">
+                <div class="catalog-head"><h2 id="item-heading">Новый товар</h2><button type="button" data-close aria-label="Закрыть">✕</button></div>
+                <div class="catalog-fields">
+                    <label>Код товара<input id="item-sku" required placeholder="FP-105" autocomplete="off"></label>
+                    <label>Наименование<input id="item-title" required></label>
+                    <label>Категория<select id="item-category"></select></label>
+                    <label>Цена, ₽<input type="number" id="item-price" min="0.01" step="0.01" required></label>
+                </div>
+                <details id="stock-options"><summary>Остаток на складе</summary><label>Количество, шт.<input type="number" min="0" step="1" id="item-stock"></label></details>
+                <label for="item-description">Описание</label>
+                <div class="format-bar"><button type="button" data-format="bold" aria-label="Жирный"><b>Ж</b></button><button type="button" data-format="underline" aria-label="Подчёркнутый"><u>Ч</u></button></div>
+                <div contenteditable="true" role="textbox" aria-multiline="true" aria-label="Описание" id="item-description"></div>
+                <div class="item-photo"><div class="photo-frame"><img id="item-preview" alt="Предпросмотр фото" hidden><span id="photo-empty">Нет фото</span></div>
+                    <div><label>Фото товара<input id="item-file" type="file" accept="image/jpeg,image/png,image/webp"></label><details><summary>Фото по ссылке</summary><input id="item-url" aria-label="Адрес фото" placeholder="https://…"></details><button id="remove-photo" type="button" hidden>Убрать фото</button></div>
+                </div>
+                <p id="item-status" role="status"></p><div class="catalog-actions"><button type="button" data-close>Отмена</button><button class="primary" type="submit">Сохранить товар</button></div>
+            </form>
+        </dialog>
+        <dialog id="cat-dialog" class="catalog-dialog" aria-labelledby="cat-heading"><div class="catalog-workspace">
+            <div class="catalog-head"><h2 id="cat-heading">Категории</h2><button type="button" data-close aria-label="Закрыть">✕</button></div>
+            <input id="cat-search" type="search" placeholder="Найти категорию" aria-label="Поиск категории">
+            <div id="cat-list"></div>
+            <form id="cat-form" class="catalog-actions"><input id="cat-name" required placeholder="Новая категория" aria-label="Название новой категории"><button class="primary">Добавить</button></form>
+            <p id="cat-status" role="status"></p>
+        </div></dialog>
     </section>
     <div id="product-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-3">
         <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5">
@@ -198,7 +250,7 @@
                 description: p.description || "", flavors: Array.isArray(p.flavors) && p.flavors.length ? p.flavors : [{ name: "Стандарт", stock: 10 }]
             }));
             products.forEach(p => { selectedFlavorByProduct[p.id] = 0; });
-            renderFilters(); renderProducts(); updateCartUI(); renderAdminTables();
+            renderFilters(); renderProducts(); updateCartUI();
         }
         function renderFilters() {
             document.getElementById('category-pills').innerHTML = categories.map(c => `<button onclick="selectCategory('${c}')" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap ${c===selectedCategory?'bg-iherb-green text-white':'bg-white text-gray-700 border'}">${c}</button>`).join('');
@@ -272,21 +324,223 @@
         if (history.state?.fitproView === 'admin' && !document.getElementById('admin-top-bar').classList.contains('hidden')) {
             switchMainView('admin');
         }
-        function renderAdminTables() {
-            document.getElementById('new-prod-category').innerHTML = categories.slice(1).map(c => `<option>${c}</option>`).join('');
-            document.getElementById('new-prod-brand').innerHTML = brands.slice(1).map(b => `<option>${b}</option>`).join('');
-            document.getElementById('admin-products-table').innerHTML = products.map(p => `<tr><td class="py-2 font-bold">${p.title}</td><td>${p.price} RUB</td><td><button onclick="deleteProduct(${p.id})" class="text-red-500">Удалить</button></td></tr>`).join('');
-        }
-        async function createNewProduct() {
-            const title = document.getElementById('new-prod-title').value.trim(), price = Number(document.getElementById('new-prod-price').value);
-            if (!title || !price) return showToast("Заполните название и цену!");
-            await fetch('/api/products', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, category: document.getElementById('new-prod-category').value, brand: document.getElementById('new-prod-brand').value, price, sku: document.getElementById('new-prod-sku').value, image_url: document.getElementById('new-prod-img').value, description: document.getElementById('new-prod-desc').innerHTML, flavors: [{name: "Стандарт", stock: 10}] }) });
-            showToast("Товар добавлен!"); loadStoreData();
-        }
-        async function deleteProduct(id) { await fetch('/api/products/' + id, { method: 'DELETE' }); showToast("Удалено"); loadStoreData(); }
         loadStoreData();
     </script>
 <script src="/admin.js?v=34"></script>
+<script>
+(() => {
+    const el = id => document.getElementById(id);
+    const form = el('item-form'), editor = el('item-description');
+    const itemDialog = el('item-dialog'), catDialog = el('cat-dialog');
+    let initialDescription = '';
+    let editing = null, photo = '', pendingPhoto = null, photoVersion = 0, saving = false;
+    const lower = value => String(value ?? '').trim().toLocaleLowerCase('ru');
+    function optionList(select, values, first, selected) {
+        select.replaceChildren(new Option(first, ''), ...values.map(v => new Option(v, v)));
+        if (values.includes(selected)) select.value = selected;
+    }
+    function button(text, run) {
+        const node = document.createElement('button');
+        node.type = 'button'; node.textContent = text; node.onclick = run;
+        return node;
+    }
+    async function request(url, options) {
+        const response = await fetch(url, options);
+        if (!response.ok) throw new Error('Ошибка сервера (' + response.status + ').');
+        return response;
+    }
+    const json = (method, data) => ({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    function filtered(items, query, category) {
+        const q = lower(query);
+        return items.filter(p => (!category || p.category === category) &&
+            [p.title,p.sku,p.category].some(value => lower(value).includes(q)));
+    }
+    function drawProducts() {
+        const list = el('item-list');
+        const rows = filtered(adminState.products, el('item-search').value, el('item-filter').value);
+        list.replaceChildren();
+        if (!rows.length) list.textContent = 'Товары не найдены';
+        for (const p of rows) {
+            const row = document.createElement('div'), identity = document.createElement('div'), info = document.createElement('div');
+            row.className = 'catalog-row'; identity.className = 'item-identity';
+            const thumb = document.createElement(p.image_url ? 'img' : 'span');
+            if (p.image_url) { thumb.src=p.image_url; thumb.alt=''; thumb.loading='lazy'; }
+            else thumb.className='blank-thumb';
+            const title = document.createElement('strong'), meta = document.createElement('small');
+            title.textContent=p.title;
+            const details = [p.sku, p.category];
+            if (Array.isArray(p.flavors)) details.push('Остаток: ' + p.flavors.reduce((sum,f)=>sum+(Number(f.stock)||0),0));
+            meta.textContent=details.filter(Boolean).join(' · ');
+            info.append(title,meta); identity.append(thumb,info);
+            const price = document.createElement('span'); price.textContent=Number(p.price).toLocaleString('ru-RU')+' ₽';
+            const actions = document.createElement('div'); actions.className='catalog-actions';
+            actions.append(button('Изменить',()=>openItem(p)),button('Удалить',async event=>{
+                if (!confirm('Удалить товар «'+p.title+'»?')) return;
+                event.currentTarget.disabled=true;
+                try { await request('/api/products/'+encodeURIComponent(p.id),{method:'DELETE'}); await refresh(); }
+                catch (err) { alert(err.message); drawProducts(); }
+            }));
+            row.append(identity,price,actions); list.append(row);
+        }
+    }
+    function renderCategories() {
+        const list=el('cat-list'), query=lower(el('cat-search').value);
+        list.replaceChildren();
+        adminState.categories.forEach((name,index)=>{
+            if (!lower(name).includes(query)) return;
+            const row=document.createElement('div'), label=document.createElement('span');
+            row.className='catalog-row';label.textContent=name;
+            const actions=document.createElement('div');actions.className='catalog-actions';
+            actions.append(button('↑',()=>moveCategory(index,-1)),button('↓',()=>moveCategory(index,1)),button('Изм.',()=>renameCategoryServer(name)),button('Удалить',async()=>{
+                if (!confirm('Удалить категорию «'+name+'» из списка?')) return;
+                await updateCategories(adminState.categories.filter(c=>c!==name));
+            }));
+            actions.children[0].disabled=index===0; actions.children[1].disabled=index===adminState.categories.length-1;
+            actions.children[0].ariaLabel='Переместить выше'; actions.children[1].ariaLabel='Переместить ниже';
+            row.append(label,actions);list.append(row);
+        });
+        if (!list.childElementCount) list.textContent='Категории не найдены';
+    }
+    async function updateCategories(categories) {
+        const status=el('cat-status');
+        try {
+            status.textContent='';
+            await request('/api/categories',json('POST',{categories}));
+            if (!categories.includes(adminState.activeCat)) adminState.activeCat='ALL';
+            adminState.categories=categories;
+            await refresh();return true;
+        } catch (err) {status.textContent=err.message;return false;}
+    }
+    async function refresh() {
+        await loadAllAdminData();
+        await loadStoreData();
+    }
+    function drawWorkspace() {
+        const categories=[...new Set([...adminState.categories,...adminState.products.map(p=>p.category).filter(Boolean)])];
+        optionList(el('item-filter'),categories,'Все категории',el('item-filter').value);
+        drawProducts();renderCategories();
+    }
+    // The server-side admin script calls this hook after fetching or changing its catalog.
+    window.renderAdminProductRows=drawWorkspace;
+    el('item-search').oninput=drawProducts; el('item-filter').onchange=drawProducts;
+    el('manage-cats').onclick=()=>{el('cat-status').textContent='';renderCategories();catDialog.showModal();};
+    el('cat-search').oninput=renderCategories;
+    el('cat-form').onsubmit=async event=>{
+        event.preventDefault();
+        const name=el('cat-name').value.trim();
+        if (!name) return;
+        if (adminState.categories.some(c=>lower(c)===lower(name))) {el('cat-status').textContent='Такая категория уже есть.';return;}
+        if (await updateCategories([...adminState.categories,name])) el('cat-name').value='';
+    };
+    function descriptionHTML(html) {
+        const source=document.createElement('template'), clean=document.createElement('div');
+        source.innerHTML=html;
+        function copy(node,parent) {
+            if (node.nodeType===Node.TEXT_NODE) {parent.append(document.createTextNode(node.data));return;}
+            if (node.nodeType!==Node.ELEMENT_NODE || ['SCRIPT','STYLE','IFRAME','OBJECT'].includes(node.tagName)) return;
+            let target=parent;
+            if (['B','STRONG','U','BR','P','DIV','I','EM','UL','OL','LI'].includes(node.tagName)) {
+                target=document.createElement(node.tagName.toLowerCase());parent.append(target);
+            }
+            for (const child of node.childNodes) copy(child,target);
+        }
+        for (const node of source.content.childNodes) copy(node,clean);
+        return clean.innerHTML;
+    }
+    form.querySelectorAll('[data-format]').forEach(b=>{
+        b.onmousedown=e=>e.preventDefault();
+        b.onclick=()=>{editor.focus();document.execCommand('styleWithCSS',false,false);document.execCommand(b.dataset.format);};
+    });
+    editor.onpaste=e=>{e.preventDefault();document.execCommand('insertText',false,e.clipboardData.getData('text/plain'));};
+    function preview(url) {
+        const image=el('item-preview'); image.hidden=!url;
+        if (url) image.src=url; else image.removeAttribute('src');
+        el('photo-empty').hidden=!!url; el('remove-photo').hidden=!url;
+    }
+    function clearPhoto() {
+        ++photoVersion;photo='';pendingPhoto=null;el('item-file').value='';el('item-url').value='';el('item-status').textContent='';preview('');
+    }
+    function openItem(product) {
+        editing=product;form.reset();clearPhoto();
+        el('item-heading').textContent=product?'Редактировать товар':'Новый товар';
+        el('item-sku').value=product?.sku??'';el('item-title').value=product?.title??'';
+        el('item-price').value=product?.price??'';
+        const cats=[...adminState.categories];if(product?.category&&!cats.includes(product.category)) cats.push(product.category);
+        optionList(el('item-category'),cats,'Без категории',product?.category||el('item-filter').value);
+        el('stock-options').open=false;
+        el('stock-options').hidden=(product?.flavors?.length||0)>1;
+        el('item-stock').value=product?.flavors?.[0]?.stock??10;
+        editor.innerHTML=descriptionHTML(product?.description||'');
+        initialDescription=editor.innerHTML;
+        photo=product?.image_url||'';preview(photo);
+        el('item-url').value=photo;el('item-status').textContent='';itemDialog.showModal();el('item-sku').focus();
+    }
+    el('add-item').onclick=()=>openItem(null);
+    document.querySelectorAll('.catalog-dialog [data-close]').forEach(b=>b.onclick=()=>{if (!saving) b.closest('dialog').close();});
+    itemDialog.oncancel=e=>{if(saving)e.preventDefault();};
+    el('remove-photo').onclick=clearPhoto;
+    el('item-url').oninput=e=>{++photoVersion;pendingPhoto=null;el('item-file').value='';photo=e.target.value.trim();el('item-status').textContent='';preview(photo);};
+    function fitDimensions(w,h,size) {
+        const scale=Math.min(size/w,size/h);
+        return {w:w*scale,h:h*scale,x:(size-w*scale)/2,y:(size-h*scale)/2};
+    }
+    async function preparePhoto(file) {
+        const version=++photoVersion, blobUrl=URL.createObjectURL(file);
+        try {
+            const image=new Image();image.src=blobUrl;await image.decode();
+            if (version!==photoVersion) return;
+            const canvas=document.createElement('canvas');canvas.width=canvas.height=1000;
+            const ctx=canvas.getContext('2d'), rect=fitDimensions(image.naturalWidth,image.naturalHeight,1000);
+            ctx.fillStyle='white';ctx.fillRect(0,0,1000,1000);
+            ctx.drawImage(image,rect.x,rect.y,rect.w,rect.h);
+            const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.9));
+            if (!blob) throw new Error('Не удалось обработать фото.');
+            if(version!==photoVersion)return;
+            pendingPhoto=blob;photo='';el('item-url').value='';preview(canvas.toDataURL('image/jpeg',0.8));
+            el('item-status').textContent='';
+        } finally { URL.revokeObjectURL(blobUrl); }
+    }
+    let preparing=Promise.resolve();
+    el('item-file').onchange=e=>{
+        const file=e.target.files[0];if (!file) return;
+        preparing=preparePhoto(file).catch(()=>{el('item-status').textContent='Не удалось прочитать фото. Выберите JPEG, PNG или WebP.';el('item-file').value='';});
+    };
+    form.onsubmit=async e=>{
+        e.preventDefault();if(saving)return;
+        const sku=el('item-sku').value.trim(), title=el('item-title').value.trim(), status=el('item-status');
+        if (!title || !sku) {status.textContent='Введите наименование и код товара.';return;}
+        if (adminState.products.some(p=>p.id!==editing?.id && lower(p.sku)===lower(sku))) {
+            status.textContent='Этот код уже используется другим товаром.';el('item-sku').focus();return;
+        }
+        const submit=form.querySelector('[type=submit]');saving=true;submit.disabled=true;
+        form.inert=true;
+        try {
+            await preparing;
+            if(status.textContent.startsWith('Не удалось прочитать фото'))return;
+            status.textContent='Сохранение…';
+            if(pendingPhoto) {
+                const data=new FormData();data.append('file',pendingPhoto,'product.jpg');
+                const uploaded=await (await request('/api/upload-photo',{method:'POST',body:data})).json();
+                if (!uploaded.url || uploaded.ok===false) throw new Error('Не удалось загрузить фото.');
+                photo=uploaded.url;pendingPhoto=null;
+            }
+            const body={title,sku,category:el('item-category').value,price:Number(el('item-price').value),
+                image_url:photo,description:descriptionHTML(editor.innerHTML)};
+            if(editing && editor.innerHTML===initialDescription) body.description=editing.description||'';
+            const stock=Number(el('item-stock').value);
+            if(!editing) Object.assign(body,{brand:'FIT PRO',in_stock:stock>0,flavors:[{name:'Стандарт',stock}]});
+            else Object.assign(body,{in_stock:editing.in_stock,flavors:editing.flavors,brand:editing.brand});
+            if(editing && !el('stock-options').hidden && stock!==Number(editing.flavors?.[0]?.stock??10)) {
+                body.in_stock=stock>0;body.flavors=[{name:'Стандарт',...editing.flavors?.[0],stock}];
+            }
+            await request(editing?'/api/products/'+encodeURIComponent(editing.id):'/api/products',json(editing?'PUT':'POST',body));
+            itemDialog.close();await refresh();
+        } catch(err){status.textContent=err.message;}
+        finally{saving=false;form.inert=false;submit.disabled=false;}
+    };
+    drawWorkspace();
+})();
+</script>
 
 <script>
 (() => {
