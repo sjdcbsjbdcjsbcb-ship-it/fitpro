@@ -269,5 +269,34 @@
         loadStoreData();
     </script>
 <script src="/admin.js?v=34"></script>
+
+<script>
+(() => {
+    const panel = document.getElementById('view-admin');
+    const tabIds = ['products', 'partners', 'clients', 'analytics'];
+    const param = 'admin_tab';
+
+    panel.addEventListener('click', event => {
+        const button = event.target.closest('#fp-crm-nav [data-fp-tab]');
+        if (!button || !tabIds.includes(button.dataset.fpTab)) return;
+        const url = new URL(location.href);
+        url.searchParams.set(param, button.dataset.fpTab);
+        history.replaceState(history.state, '', url);
+    }, true);
+
+    function restoreTab() {
+        const nav = panel.querySelector('#fp-crm-nav');
+        if (!nav || panel.classList.contains('hidden')) return;
+        observer.disconnect();
+        const requested = new URLSearchParams(location.search).get(param);
+        if (requested !== 'products' && tabIds.includes(requested)) {
+            nav.querySelector('[data-fp-tab="' + requested + '"]')?.click();
+        }
+    }
+    const observer = new MutationObserver(restoreTab);
+    observer.observe(panel, {childList:true, subtree:true, attributes:true, attributeFilter:['class']});
+    restoreTab();
+})();
+</script>
 </body>
 </html>
