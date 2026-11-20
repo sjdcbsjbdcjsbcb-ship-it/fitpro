@@ -82,14 +82,14 @@
                 <span class="hidden md:inline text-slate-400">Пользователь: <strong class="text-white" id="tg-current-user">Гость</strong></span>
             </div>
             <div class="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700">
-                <button onclick="switchMainView('store')" id="btn-view-store" class="px-3 py-1 rounded-md font-medium bg-iherb-green text-white shadow-sm">Витрина (Клиент)</button>
-                <button onclick="switchMainView('admin')" id="btn-view-admin" class="px-3 py-1 rounded-md font-medium text-slate-300 hover:text-white flex items-center gap-1.5"><i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-400"></i> Админ-панель</button>
+                <button onclick="selectMainView('store')" id="btn-view-store" class="px-3 py-1 rounded-md font-medium bg-iherb-green text-white shadow-sm">Витрина (Клиент)</button>
+                <button onclick="selectMainView('admin')" id="btn-view-admin" class="px-3 py-1 rounded-md font-medium text-slate-300 hover:text-white flex items-center gap-1.5"><i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-400"></i> Админ-панель</button>
             </div>
         </div>
     </div>
     <header class="bg-white border-b border-gray-200 sticky top-[38px] z-40">
         <div class="max-w-6xl mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3">
-            <div class="inline-flex flex-col items-start cursor-pointer shrink-0 select-none" onclick="switchMainView('store'); resetFilters();">
+            <div class="inline-flex flex-col items-start cursor-pointer shrink-0 select-none" onclick="selectMainView('store'); resetFilters();">
                 <svg viewBox="0 0 236 44" class="h-7 sm:h-8 w-auto overflow-visible" xmlns="http://www.w3.org/2000/svg">
                     <defs><linearGradient id="fitproWordmarkGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#65A30D"/><stop offset="100%" stop-color="#458500"/></linearGradient></defs>
                     <g transform="translate(10, 0) skewX(-13)">
@@ -250,9 +250,27 @@
             await fetch('/api/order', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name, tg, source: "Telegram Mini App", items: cart, total }) });
             cart = []; updateCartUI(); toggleCart(false); showToast("Заказ отправлен менеджеру!");
         }
-        function switchMainView(v) {
-            document.getElementById('view-store').classList.toggle('hidden', v !== 'store');
-            document.getElementById('view-admin').classList.toggle('hidden', v !== 'admin');
+        function selectMainView(view) {
+            const url = new URL(location.href);
+            if (view === 'store') url.searchParams.delete('admin_tab');
+            history.replaceState({ ...history.state, fitproView: view }, '', url);
+            switchMainView(view);
+        }
+
+        function switchMainView(requested) {
+            // Delayed admin initialization must respect the view selected in this history entry.
+            const view = history.state?.fitproView === 'store' ? 'store' : requested;
+            for (const name of ['store', 'admin']) {
+                const active = name === view;
+                document.getElementById('view-' + name).classList.toggle('hidden', !active);
+                const button = document.getElementById('btn-view-' + name);
+                for (const cls of ['bg-iherb-green', 'text-white', 'shadow-sm']) button.classList.toggle(cls, active);
+                for (const cls of ['text-slate-300', 'hover:text-white']) button.classList.toggle(cls, !active);
+                button.setAttribute('aria-pressed', String(active));
+            }
+        }
+        if (history.state?.fitproView === 'admin' && !document.getElementById('admin-top-bar').classList.contains('hidden')) {
+            switchMainView('admin');
         }
         function renderAdminTables() {
             document.getElementById('new-prod-category').innerHTML = categories.slice(1).map(c => `<option>${c}</option>`).join('');
