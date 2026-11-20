@@ -143,6 +143,14 @@
   #products-grid .product-card > .cursor-pointer > div.h-44:first-child { height: var(--catalog-photo-height); }
 }
 </style>
+<style>
+.product-spec{margin-top:4px;color:#526175;font-size:12px;line-height:1.45;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.availability{display:inline-block;margin:7px 0;color:#745a39;font-size:12px;font-weight:600}.availability.available{color:#477910}
+.shop-buy,.shop-inquire{display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:10px;font-size:13px;font-weight:650}.shop-buy{background:#507f0c;color:#fff}.shop-inquire{color:#426a0b;background:#f0f5ea}
+#modal-action-area{display:grid;gap:8px}.cart-line{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid #e5e7eb;padding:10px 0;font-size:13px}.cart-line small{display:block;color:#526175}.qty-controls{display:flex;align-items:center;gap:8px}.qty-controls button{width:30px;height:30px;border-radius:8px;background:#eff4e9;font-weight:700}.qty-controls button:disabled{opacity:.4}
+#inventory-dialog{width:min(850px,calc(100% - 20px))}#inventory-dialog td,#inventory-dialog th{padding:7px;border-bottom:1px solid #e3e8df}#inventory-rows input:not([type=checkbox]){min-width:110px}#inventory-dialog input[type=checkbox],#item-form input[type=checkbox]{width:auto}
+#item-specs,#arrival-options{margin:12px 0}#item-specs summary,#arrival-options summary{margin-bottom:8px}#item-form .eta-check{display:flex;align-items:center}
+</style>
 </head>
 <body class="antialiased min-h-screen flex flex-col">
     <div id="admin-top-bar" class="hidden bg-slate-900 text-white text-xs py-2 px-3 sm:px-6 sticky top-0 z-50 shadow-md">
@@ -200,10 +208,19 @@
             <div class="admin-client-count">Клиентов: <strong id="crm-count-badge">—</strong></div>
         </div>
         <div class="catalog-workspace">
-            <div class="catalog-head"><h2>Товары</h2><div class="catalog-actions"><button id="manage-cats" type="button">Категории</button><button id="add-item" type="button" class="primary">Добавить товар</button></div></div>
+            <div class="catalog-head"><h2>Товары</h2><div class="catalog-actions"><button id="inventory-open" type="button">Импорт остатков</button><button id="manage-cats" type="button">Категории</button><button id="add-item" type="button" class="primary">Добавить товар</button></div></div>
             <div class="catalog-fields"><input id="item-search" type="search" aria-label="Поиск по названию или коду" placeholder="Название или код товара"><select id="item-filter" aria-label="Фильтр по категории"></select></div>
             <div id="item-list"></div>
         </div>
+        <dialog id="inventory-dialog" class="catalog-dialog" aria-labelledby="inventory-heading"><div class="catalog-workspace">
+            <div class="catalog-head"><h2 id="inventory-heading">Импорт остатков</h2><button id="inventory-close" aria-label="Закрыть">✕</button></div>
+            <label>Файл Excel (.xlsx)<input id="inventory-file" type="file" accept=".xlsx"></label>
+            <p class="text-sm text-gray-600 my-2">Нужны код товара и остаток. Для новых товаров укажите название и цену. Отметьте строки для сохранения.</p>
+            <div id="inventory-controls" hidden><div class="catalog-fields"><label>Лист<select id="inventory-sheet"></select></label><label>Заголовки<select id="inventory-header"></select></label></div>
+            <details><summary>Сопоставить столбцы</summary><div class="catalog-fields" id="inventory-map"></div></details></div>
+            <p id="inventory-summary" class="my-3"></p><div class="overflow-auto" style="max-height:45vh"><table class="w-full text-left text-sm"><thead><tr><th>Выбор</th><th>Код</th><th>Товар</th><th>Остаток</th><th>Результат</th></tr></thead><tbody id="inventory-rows"></tbody></table></div>
+            <p id="inventory-msg" role="status"></p><button type="button" class="primary" id="inventory-apply" disabled>Применить</button>
+        </div></dialog>
         <dialog id="item-dialog" class="catalog-dialog" aria-labelledby="item-heading">
             <form id="item-form" class="catalog-workspace">
                 <div class="catalog-head"><h2 id="item-heading">Новый товар</h2><button type="button" data-close aria-label="Закрыть">✕</button></div>
@@ -213,7 +230,16 @@
                     <label>Категория<select id="item-category"></select></label>
                     <label>Цена, ₽<input type="number" id="item-price" min="0.01" step="0.01" required></label>
                 </div>
+                <details id="item-specs"><summary>Характеристики на карточке · необязательно</summary><div class="catalog-fields">
+                    <label>Упаковка<input id="spec-amount" type="number" min="0.01" step="any" placeholder="300"></label>
+                    <label>Единица<select id="spec-unit"><option>г</option><option>кг</option><option>мл</option><option>л</option><option>капс.</option><option>табл.</option><option>шт.</option><option>пак.</option></select></label>
+                    <label>Количество порций<input id="spec-servings" type="number" min="1" step="1"></label><label>Вкус<input id="spec-taste" maxlength="45" placeholder="Например, лимон"></label>
+                </div></details>
                 <details id="stock-options"><summary>Остаток на складе</summary><label>Количество, шт.<input type="number" min="0" step="1" id="item-stock"></label></details>
+                <details id="arrival-options"><summary>Ожидаемое поступление</summary>
+                    <label class="eta-check"><input id="spec-expected" type="checkbox"> Ожидается</label>
+                    <label>Дата, если известна<input id="spec-eta" type="date"></label>
+                </details>
                 <label for="item-description">Описание</label>
                 <div class="format-bar"><button type="button" data-format="bold" aria-label="Жирный"><b>Ж</b></button><button type="button" data-format="underline" aria-label="Подчёркнутый"><u>Ч</u></button></div>
                 <div contenteditable="true" role="textbox" aria-multiline="true" aria-label="Описание" id="item-description"></div>
@@ -285,10 +311,10 @@
             };
             document.dispatchEvent(new Event('fitpro-catalog-loaded'));
             products = (data.products || []).map(p => ({
-                id: p.id, sku: p.sku || `FP-${p.id}`, title: p.title, category: p.category || "Пептиды",
+                id: p.id, sku: p.sku || "", title: p.title, category: p.category || "Пептиды",
                 brand: p.brand || "GLEID", price: Number(p.price),
                 img: p.image_url || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=500&q=80",
-                description: p.description || "", flavors: Array.isArray(p.flavors) && p.flavors.length ? p.flavors : [{ name: "Стандарт", stock: 10 }]
+                description:p.description||"", image_url:p.image_url||"", flavors:Array.isArray(p.flavors)?p.flavors:[]
             }));
             products.forEach(p => { selectedFlavorByProduct[p.id] = 0; });
             renderFilters(); renderProducts(); updateCartUI();
@@ -301,47 +327,139 @@
         function selectBrand(b) { selectedBrand = b; renderFilters(); renderProducts(); }
         function handleSearch(v) { searchQuery = v.trim().toLowerCase(); renderProducts(); }
         function resetFilters() { selectedCategory = "Все"; selectedBrand = "Все бренды"; searchQuery = ""; renderFilters(); renderProducts(); }
-        function renderProducts() {
-            const grid = document.getElementById('products-grid'), emptyBox = document.getElementById('empty-products');
-            const filtered = products.filter(p => (selectedCategory === "Все" || p.category === selectedCategory) && (selectedBrand === "Все бренды" || p.brand === selectedBrand) && (!searchQuery || p.title.toLowerCase().includes(searchQuery) || p.brand.toLowerCase().includes(searchQuery)));
-            if (!filtered.length) { grid.innerHTML = ''; emptyBox.classList.remove('hidden'); return; }
-            emptyBox.classList.add('hidden');
-            grid.innerHTML = filtered.map(p => `<div onclick="openProductModal(${p.id})" class="product-card bg-white rounded-2xl border border-gray-200 hover:border-iherb-green/60 hover:shadow-md transition-all flex flex-col justify-between overflow-hidden cursor-pointer"><div><div class="product-img-box h-40 sm:h-48 border-b border-gray-100 p-3"><img src="${p.img}"><span class="absolute top-2.5 left-2.5 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-700">${p.brand}</span></div><div class="p-3"><div class="text-[11px] text-gray-400">${p.category}</div><h3 class="text-xs sm:text-sm font-bold text-gray-900 line-clamp-2 min-h-[2.4rem]">${p.title}</h3></div></div><div class="px-3 pb-3 pt-1"><div class="flex items-center justify-between mb-2"><span class="text-base sm:text-lg font-extrabold text-gray-900">${p.price.toLocaleString('ru-RU')} RUB</span><span class="text-[11px] text-emerald-600 font-medium">В наличии</span></div><button type="button" onclick="addToCart(event,${p.id},0)" class="w-full py-2 px-3 bg-iherb-green hover:bg-iherb-dark text-white text-xs font-bold rounded-xl">В корзину</button></div></div>`).join('');
-            lucide.createIcons();
-        }
-        function openProductModal(id) {
-            const p = products.find(x => x.id === id); if (!p) return;
-            document.getElementById('modal-prod-brand').textContent = p.brand;
-            document.getElementById('modal-prod-cat').textContent = p.category;
-            document.getElementById('modal-prod-title').textContent = p.title;
-            document.getElementById('modal-prod-price').textContent = p.price.toLocaleString('ru-RU') + " RUB";
-            document.getElementById('modal-prod-desc').innerHTML = p.description;
-            document.getElementById('modal-prod-img').src = p.img;
-            document.getElementById('modal-action-area').innerHTML = `<button onclick="addToCart(null,${p.id},0);closeProductModal();" class="w-full py-3 bg-iherb-green text-white font-bold text-sm rounded-xl">Добавить в корзину</button>`;
-            document.getElementById('product-modal').classList.replace('hidden', 'flex');
-        }
+const byId = id => document.getElementById(id);
+function node(tag, text, cls) {
+    const el=document.createElement(tag);
+    if(text!=null) el.textContent=text;
+    if(cls) el.className=cls;
+    return el;
+}
+function action(text, click, cls) {
+    const btn=node('button',text,cls);btn.type='button';btn.onclick=click;return btn;
+}
+const normSku = value => String(value ?? '').trim().toLocaleLowerCase('ru');
+function variants(p) { return Array.isArray(p?.flavors) ? p.flavors : []; }
+function units(v) {
+    const n=Number(v?.stock);return Number.isSafeInteger(n) && n>0 ? n : 0;
+}
+function onHand(p) { return variants(p).reduce((n,v)=>n+units(v),0); }
+function specOf(p) { return variants(p)[0]?.fitpro || {}; }
+const servingWords={one:'порция',few:'порции',many:'порций',other:'порции'};
+function featureLine(s) {
+    return [s.amount && [s.amount,s.unit].filter(Boolean).join(' '),
+        s.servings && s.servings+' '+servingWords[new Intl.PluralRules('ru').select(Number(s.servings))],
+        s.taste].filter(Boolean).join(' · ');
+}
+function availability(p) {
+    if(onHand(p)) return 'В наличии';
+    const s=specOf(p);
+    if(!s.expected && !s.eta) return 'Нет в наличии';
+    return s.eta ? 'Ожидается '+s.eta.split('-').reverse().join('.') : 'Ожидается';
+}
+function availabilityBadge(p) {
+    return node('span',availability(p),'availability '+(onHand(p)?'available':''));
+}
+function storeItem(id) {
+    return products.find(p=>String(p.id)===String(id));
+}
+function cartLimit(id, flavor) {
+    const p=storeItem(id);
+    return units(variants(p).find(v=>(v.name||'Стандарт')===flavor));
+}
+function addToCart(e,id,idx=0) {
+    e?.stopPropagation();
+    const p=storeItem(id), v=variants(p)[idx], flavor=v?.name||'Стандарт';
+    if(!p || !units(v)) {showToast('Этого товара сейчас нет в наличии');return false;}
+    const line=cart.find(x=>x.id===p.id && x.flavor===flavor);
+    if((line?.qty||0)>=units(v)) {showToast('Достигнут доступный остаток');return false;}
+    if(line) line.qty++; else cart.push({id:p.id,title:p.title,price:p.price,flavor,qty:1});
+    updateCartUI();showToast('Добавлено: '+p.title);return true;
+}
+function changeQty(i,delta) {
+    const line=cart[i];if(!line)return;
+    if(delta>0 && line.qty>=cartLimit(line.id,line.flavor))return;
+    line.qty+=delta;if(line.qty<=0)cart.splice(i,1);
+    updateCartUI();
+}
+function updateCartUI() {
+    byId('cart-badge').textContent=cart.reduce((s,i)=>s+i.qty,0);
+    byId('cart-total').textContent=cart.reduce((s,i)=>s+i.qty*i.price,0).toLocaleString('ru-RU')+' ₽';
+    const list=byId('cart-items-list');list.replaceChildren();
+    if(!cart.length)list.append(node('div','Корзина пуста','text-sm text-gray-500'));
+    cart.forEach((line,i)=>{
+        const row=node('div',null,'cart-line'), info=node('div'), controls=node('div',null,'qty-controls');
+        info.append(node('strong',line.title),node('small',[line.flavor!=='Стандарт'?line.flavor:'',(line.price*line.qty).toLocaleString('ru-RU')+' ₽'].filter(Boolean).join(' · ')));
+        const minus=action('−',()=>changeQty(i,-1)),plus=action('+',()=>changeQty(i,1));
+        minus.ariaLabel='Уменьшить количество '+line.title;plus.ariaLabel='Увеличить количество '+line.title;
+        plus.disabled=line.qty>=cartLimit(line.id,line.flavor);
+        controls.append(minus,node('span',line.qty),plus);
+        const del=action('Удалить',()=>{cart.splice(i,1);updateCartUI();},'text-xs text-red-600');
+        row.append(info,controls,del);list.append(row);
+    });
+}
+function renderStockGrid() {
+    const grid=byId('products-grid'), empty=byId('empty-products');
+    const q=(byId('search-input-desktop')?.value||searchQuery||'').trim().toLowerCase();
+    const category=typeof adminState==='undefined'?'ALL':adminState.activeCat;
+    const list=products.filter(p=>(category==='ALL'||category===p.category) &&
+        (!q || [p.title,p.sku,p.category,p.description].some(x=>String(x||'').toLowerCase().includes(q))));
+    grid.replaceChildren();empty.classList.toggle('hidden',!!list.length);
+    for(const p of list) {
+        const card=node('div',null,'product-card bg-white rounded-2xl border border-slate-200 p-3.5 flex flex-col justify-between shadow-sm');
+        const detail=node('div',null,'cursor-pointer');detail.onclick=()=>openProductModal(p.id);
+        if(p.image_url){const img=node('img');img.src=p.image_url;img.alt=p.title;img.loading='lazy';img.className='w-full object-contain mb-3';detail.append(img);}
+        else detail.append(node('div','Нет фото','w-full h-44 flex items-center justify-center text-xs text-slate-400'));
+        detail.append(node('div',p.category,'text-xs text-lime-700'),node('h3',p.title,'font-bold text-sm text-slate-900'));
+        const summary=featureLine(specOf(p));if(summary){const line=node('div',summary,'product-spec');line.title=summary;detail.append(line);}
+        detail.append(availabilityBadge(p));
+        const footer=node('div',null,'pt-2 border-t border-slate-100 flex items-center justify-between gap-2');
+        const cta=onHand(p)?action('В корзину',e=>variants(p).length>1?openProductModal(p.id):addToCart(e,p.id),'shop-buy'):node('a','Уточнить','shop-inquire');
+        if(!onHand(p)){cta.href='https://t.me/manager_fitpro';cta.target='_blank';cta.rel='noopener noreferrer';cta.ariaLabel='Уточнить поступление '+p.title;}
+        footer.append(node('strong',p.price.toLocaleString('ru-RU')+' ₽'),cta);
+        card.append(detail,footer);grid.append(card);
+    }
+}
+function openProductModal(id) {
+    const p=storeItem(id);if(!p)return;
+    for(const [field,val] of Object.entries({brand:p.brand,cat:p.category,title:p.title,price:p.price.toLocaleString('ru-RU')+' ₽'}))byId('modal-prod-'+field).textContent=val;
+    byId('modal-prod-desc').innerHTML=p.description;byId('modal-prod-img').src=p.img;
+    const area=byId('modal-action-area');area.replaceChildren();
+    const spec=featureLine(specOf(p));if(spec)area.append(node('div',spec,'text-sm text-gray-600'));
+    area.append(availabilityBadge(p));
+    if(onHand(p)) {
+        const select=node('select');select.ariaLabel='Вариант товара';
+        variants(p).forEach((v,i)=>{const o=new Option(v.name||'Стандарт',i);o.disabled=!units(v);select.add(o);});
+        select.value=String(variants(p).findIndex(units));if(select.length>1)area.append(select);
+        area.append(action('Добавить в корзину',()=>{if(addToCart(null,p.id,Number(select.value)))closeProductModal();},'shop-buy'));
+    } else {
+        const link=node('a','Уточнить поступление','shop-inquire');link.href='https://t.me/manager_fitpro';link.target='_blank';link.rel='noopener noreferrer';area.append(link);
+    }
+    byId('product-modal').classList.replace('hidden','flex');
+}
+
+        function renderProducts(){renderStockGrid();}
         function closeProductModal() { document.getElementById('product-modal').classList.replace('flex', 'hidden'); }
         function toggleCart(s) { const d = document.getElementById('cart-drawer'); s ? d.classList.replace('hidden', 'flex') : d.classList.replace('flex', 'hidden'); }
         function showToast(t) { const b = document.getElementById('toast-box'); document.getElementById('toast-text').textContent = t; b.classList.remove('hidden'); setTimeout(() => b.classList.add('hidden'), 2500); }
-        function addToCart(e, id, idx) {
-            if (e) e.stopPropagation();
-            const p = products.find(x => x.id === id); if (!p) return;
-            const ex = cart.find(x => x.id === id);
-            ex ? ex.qty++ : cart.push({ id: p.id, title: p.title, price: p.price, flavor: "Стандарт", qty: 1 });
-            updateCartUI(); showToast("Добавлено: " + p.title);
-        }
-        function updateCartUI() {
-            const count = cart.reduce((s, i) => s + i.qty, 0), total = cart.reduce((s, i) => s + i.price * i.qty, 0);
-            document.getElementById('cart-badge').textContent = count;
-            document.getElementById('cart-total').textContent = total.toLocaleString('ru-RU') + " RUB";
-            document.getElementById('cart-items-list').innerHTML = cart.map((i, idx) => `<div class="flex justify-between items-center border-b pb-2 text-xs"><div><b>${i.title}</b> (${i.qty} шт.)</div><button onclick="cart.splice(${idx},1);updateCartUI();" class="text-red-500">Удалить</button></div>`).join('') || '<div class="text-xs text-gray-400 text-center py-4">Корзина пуста</div>';
-        }
-        async function submitOrder() {
-            const name = document.getElementById('order-name').value.trim(), tg = document.getElementById('order-tg').value.trim();
-            if (!cart.length || !name || !tg) return showToast("Заполните корзину, имя и Telegram!");
-            const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
-            await fetch('/api/order', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ name, tg, source: "Telegram Mini App", items: cart, total }) });
-            cart = []; updateCartUI(); toggleCart(false); showToast("Заказ отправлен менеджеру!");
+        let ordering=false;
+        async function submitOrder(){
+            if(ordering)return;
+            const name=byId('order-name').value.trim(),tg=byId('order-tg').value.trim();
+            if(!name||!tg||!cart.length)return showToast('Заполните корзину, имя и Telegram!');
+            ordering=true;const drawer=byId('cart-drawer');drawer.inert=true;
+            try{
+                await loadStoreData();
+                for(const line of cart){
+                    const current=storeItem(line.id);
+                    if(line.qty>cartLimit(line.id,line.flavor))return showToast('Проверьте остаток: '+line.title);
+                    if(current.price!==line.price){line.price=current.price;updateCartUI();return showToast('Цена изменилась. Проверьте заказ.');}
+                }
+                const total=cart.reduce((s,i)=>s+i.qty*i.price,0);
+                const res=await fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,tg,source:'Telegram Mini App',items:cart,total})});
+                if(!res.ok)throw Error();
+                cart=[];updateCartUI();toggleCart(false);showToast('Заказ отправлен менеджеру!');
+            }catch{showToast('Не удалось подтвердить заказ. Свяжитесь с менеджером.');}
+            finally{drawer.inert=false;ordering=false;}
         }
         function selectMainView(view) {
             const url = new URL(location.href);
@@ -368,6 +486,7 @@
         loadStoreData();
     </script>
 <script src="/admin.js?v=34"></script>
+<script>window.renderStorefrontGrid=renderStockGrid;window.renderProducts=renderStockGrid;</script>
 <script>
 (() => {
     const el = id => document.getElementById(id);
@@ -510,12 +629,18 @@
         optionList(el('item-category'),cats,'Без категории',product?.category||el('item-filter').value);
         el('stock-options').open=false;
         el('stock-options').hidden=(product?.flavors?.length||0)>1;
-        el('item-stock').value=product?.flavors?.[0]?.stock??10;
+        el('item-stock').value=units(variants(product)[0]);
+        const spec=specOf(product);
+        for(const k of ['amount','unit','servings','taste','eta'])el('spec-'+k).value=spec[k]||(k==='unit'?'г':'');
+        el('spec-expected').checked=!!(spec.expected||spec.eta);
+        el('item-specs').open=!!featureLine(spec);el('arrival-options').open=el('spec-expected').checked;
         editor.innerHTML=descriptionHTML(product?.description||'');
         initialDescription=editor.innerHTML;
         photo=product?.image_url||'';preview(photo);
         el('item-url').value=photo;el('item-status').textContent='';itemDialog.showModal();el('item-sku').focus();
     }
+    el('spec-expected').onchange=e=>{if(!e.target.checked)el('spec-eta').value='';};
+    el('spec-eta').oninput=e=>{if(e.target.value)el('spec-expected').checked=true;};
     el('add-item').onclick=()=>openItem(null);
     document.querySelectorAll('.catalog-dialog [data-close]').forEach(b=>b.onclick=()=>{if (!saving) b.closest('dialog').close();});
     itemDialog.oncancel=e=>{if(saving)e.preventDefault();};
@@ -571,9 +696,17 @@
             const stock=Number(el('item-stock').value);
             if(!editing) Object.assign(body,{brand:'FIT PRO',in_stock:stock>0,flavors:[{name:'Стандарт',stock}]});
             else Object.assign(body,{in_stock:editing.in_stock,flavors:editing.flavors,brand:editing.brand});
-            if(editing && !el('stock-options').hidden && stock!==Number(editing.flavors?.[0]?.stock??10)) {
+            if(editing && !el('stock-options').hidden && stock!==units(variants(editing)[0])) {
                 body.in_stock=stock>0;body.flavors=[{name:'Стандарт',...editing.flavors?.[0],stock}];
             }
+            const feature={};
+            for(const key of ['amount','servings','taste','eta']){const v=el('spec-'+key).value.trim();if(v)feature[key]=v;}
+            if(feature.amount)feature.unit=el('spec-unit').value;
+            if(el('spec-expected').checked||feature.eta)feature.expected=true;
+            const updated=(body.flavors||[]).map(v=>({...v}));
+            if(!updated.length)updated.push({name:'Стандарт',stock});
+            if(Object.keys(feature).length)updated[0].fitpro=feature;else delete updated[0].fitpro;
+            body.flavors=updated;body.in_stock=updated.some(v=>units(v)>0);
             await request(editing?'/api/products/'+encodeURIComponent(editing.id):'/api/products',json(editing?'PUT':'POST',body));
             itemDialog.close();await refresh();
         } catch(err){status.textContent=err.message;}
@@ -749,6 +882,221 @@
     observer.observe(panel, {childList:true, subtree:true, attributes:true, attributeFilter:['class']});
     restoreTab();
 })();
+</script>
+<script>
+// Read worksheet values locally; the workbook itself is never uploaded.
+async function readWorkbook(file) {
+    if(!/\.xlsx$/i.test(file.name))throw Error('Сохраните файл в формате .xlsx.');
+    if(file.size>20*1024*1024)throw Error('Размер книги превышает 20 МБ.');
+    const bytes=new Uint8Array(await file.arrayBuffer()), view=new DataView(bytes.buffer), decode=new TextDecoder();
+    const u16=i=>view.getUint16(i,true),u32=i=>view.getUint32(i,true);
+    let end=bytes.length-22;
+    for(;end>=Math.max(0,bytes.length-65557);end--)if(u32(end)===0x06054b50)break;
+    if(end<0||u32(end)!==0x06054b50)throw Error('Не удалось открыть книгу Excel.');
+    const entries=new Map();let offset=u32(end+16),budget=0;
+    for(let i=0;i<u16(end+10);i++){
+        if(u32(offset)!==0x02014b50)throw Error('Повреждена структура книги.');
+        const len=u16(offset+28), name=decode.decode(bytes.subarray(offset+46,offset+46+len));
+        entries.set(name,{method:u16(offset+10),size:u32(offset+20),unpacked:u32(offset+24),at:u32(offset+42)});
+        offset+=46+len+u16(offset+30)+u16(offset+32);
+    }
+    const cache=new Map();
+    async function xml(path){
+        if(cache.has(path))return cache.get(path);
+        const e=entries.get(path);if(!e)throw Error('В книге отсутствует '+path);
+        if(e.unpacked>24e6 || (budget+=e.unpacked)>64e6)throw Error('Лист слишком большой для предпросмотра.');
+        const start=e.at+30+u16(e.at+26)+u16(e.at+28);
+        let data=bytes.subarray(start,start+e.size);
+        if(e.method===8){
+            const reader=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+            const chunks=[];let total=0;
+            while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>e.unpacked){await reader.cancel();throw Error('Повреждена книга.');}chunks.push(value);}
+            data=await new Blob(chunks).arrayBuffer();
+        } else if(e.method!==0)throw Error('Этот способ сжатия книги не поддерживается.');
+        const doc=new DOMParser().parseFromString(decode.decode(data),'application/xml');
+        if(doc.getElementsByTagName('parsererror').length)throw Error('Не удалось прочитать таблицу Excel.');
+        cache.set(path,doc);return doc;
+    }
+    const tags=(root,name)=>Array.from(root.getElementsByTagNameNS('*',name));
+    const book=await xml('xl/workbook.xml'),rels=tags(await xml('xl/_rels/workbook.xml.rels'),'Relationship');
+    const sheets=tags(book,'sheet').map(s=>{
+        const id=s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id')||s.getAttribute('r:id');
+        const r=rels.find(r=>r.getAttribute('Id')===id && r.getAttribute('Type').endsWith('/worksheet'));
+        return r && {name:s.getAttribute('name'),path:new URL(r.getAttribute('Target'),'https://workbook.invalid/xl/').pathname.slice(1)};
+    }).filter(Boolean);
+    if(!sheets.length)throw Error('В книге нет листов с данными.');
+    const strings=entries.has('xl/sharedStrings.xml')?tags(await xml('xl/sharedStrings.xml'),'si').map(s=>tags(s,'t').map(t=>t.textContent).join('')):[];
+    let formats=[];
+    if(entries.has('xl/styles.xml')){
+        const styles=await xml('xl/styles.xml'), defs=new Map(tags(styles,'numFmt').map(n=>[n.getAttribute('numFmtId'),n.getAttribute('formatCode')]));
+        const xfs=tags(styles,'cellXfs')[0];if(xfs)formats=tags(xfs,'xf').map(n=>defs.get(n.getAttribute('numFmtId'))||'');
+    }
+    async function rows(index){
+        return tags(await xml(sheets[index].path),'row').map((row,i)=>{
+            const values=[];
+            for(const cell of tags(row,'c')){
+                const letters=(cell.getAttribute('r')||'').match(/^[A-Z]+/i)?.[0];
+                const col=letters?Array.from(letters).reduce((n,l)=>26*n+l.toUpperCase().charCodeAt(0)-64,0)-1:values.length;
+                let value=tags(cell,'v')[0]?.textContent||'';
+                const type=cell.getAttribute('t');
+                if(type==='s') value=strings[Number(value)]??'';
+                else if(type==='inlineStr')value=tags(cell,'t').map(n=>n.textContent).join('');
+                else if(type==='e')value='#ОШИБКА';
+                else if(!type||type==='n'){
+                    const fmt=formats[Number(cell.getAttribute('s'))];if(/^0+$/.test(fmt)&&/^\d+$/.test(value))value=value.padStart(fmt.length,'0');
+                }
+                values[col]=value.trim();
+            }
+            return {number:Number(row.getAttribute('r')||i+1),values};
+        }).filter(r=>r.values.some(Boolean));
+    }
+    return {sheets,rows};
+}
+const stockAliases={
+    sku:['код товара','код','артикул','sku','код номенклатуры','штрихкод'],
+    stock:['остаток','остатки','остаток шт','количество','кол-во','доступно','свободный остаток','на складе'],
+    title:['наименование','название','товар','номенклатура','наименование товара'],
+    price:['цена','цена руб','стоимость','розничная цена'],
+    variant:['вариант','вкус','характеристика']
+};
+const cleanHeader=s=>normSku(s).replace(/[().,₽]/g,' ').replace(/\s+/g,' ').trim();
+function columnFor(values,key){return values.findIndex(v=>stockAliases[key].includes(cleanHeader(v)));}
+function skuIndex(items) {
+    const map=new Map();
+    for(const p of items){const key=normSku(p.sku);if(key)map.set(key,[...(map.get(key)||[]),p]);}
+    return map;
+}
+function inventoryPlan(rows,cols,items){
+    const lookup=skuIndex(items), seen=new Map();
+    const plans=rows.map(r=>{
+        const get=k=>String(r.values[cols[k]]??'').trim();
+        const sku=get('sku'),key=normSku(sku),raw=get('stock'),qty=Number(raw.replace(',','.'));
+        const matches=lookup.get(key)||[],p=matches[0],fl=variants(p),variant=get('variant');
+        const index=p && variant?fl.findIndex(f=>normSku(f.name)===normSku(variant)):0;
+        const row={number:r.number,sku,key,qty,newName:get('title'),newPrice:get('price').replace(/\s/g,'').replace(',','.'),variant,index,p,chosen:!!p};
+        if(!sku)row.error='Нет кода';
+        else if(!/^\d+(?:[.,]0+)?$/.test(raw)||!Number.isSafeInteger(qty))row.error='Остаток должен быть целым числом от 0';
+        else if(matches.length>1)row.error='Код не уникален в каталоге';
+        else if(p && ((fl.length>1&&!variant)||(variant && index<0)))row.error='Укажите существующий вариант товара';
+        else if(p){row.before=units(fl[index]);row.same=row.before===qty && p.in_stock===(onHand(p)-row.before+qty>0);}
+        if(key){const token=JSON.stringify([key,p?index:'new']);if(seen.has(token)){row.error='Повтор в файле';seen.get(token).error=row.error;}else seen.set(token,row);}
+        return row;
+    });
+    return plans;
+}
+(() => {
+    const dialog=byId('inventory-dialog'), form=byId('inventory-controls'), file=byId('inventory-file');
+    const sheet=byId('inventory-sheet'), header=byId('inventory-header'), mappings=byId('inventory-map');
+    const list=byId('inventory-rows'), msg=byId('inventory-msg'), summary=byId('inventory-summary'),apply=byId('inventory-apply');
+    let book,rows=[],plans=[],catalog=[],busy=false,version=0;
+    const keys=Object.keys(stockAliases),labels=['Код товара','Остаток','Наименование','Цена','Вариант'];
+    async function readCatalog(){
+        const res=await fetch('/api/init',{cache:'no-store'});if(!res.ok)throw Error('Не удалось загрузить каталог.');
+        const data=await res.json();if(!Array.isArray(data.products))throw Error('Каталог недоступен.');return data.products;
+    }
+    function report(){
+        const good=plans.filter(r=>!r.error);
+        const pieces=['Совпало: '+good.filter(r=>r.p).length,'Новых кодов: '+good.filter(r=>!r.p).length,'Станет нулевым: '+good.filter(r=>r.before>0 && r.qty===0).length,'Ошибок: '+plans.filter(r=>r.error).length];
+        const selected=good.filter(r=>r.chosen&&!r.same);summary.textContent=pieces.join(' · ');
+        apply.textContent='Применить ('+selected.length+')';apply.disabled=busy||!selected.length;
+    }
+    function draw(){
+        list.replaceChildren();
+        for(const r of plans){
+            const tr=node('tr'),check=node('input');check.type='checkbox';check.checked=!r.error&&!r.same&&r.chosen;check.disabled=!!r.error||!!r.same;check.ariaLabel='Применить строку '+r.number;
+            const td=node('td');td.append(check);tr.append(td,node('td',r.sku||'—'),node('td',r.p?.title||r.newName||'Новый товар'),node('td',r.error?'—':(r.p?r.before:'—')+' → '+r.qty));
+            const detail=node('td',r.error||(r.same?'Без изменений':r.p?'Обновить':'Добавить товар?'));
+            if(!r.p&&!r.error){
+                for(const [key,label] of [['newName','Наименование'],['newPrice','Цена, ₽']]){
+                    const input=node('input');input.placeholder=label;input.ariaLabel=label+' для '+r.sku;input.value=r[key];input.oninput=()=>{r[key]=input.value.trim();};detail.append(input);
+                }
+            }
+            check.onchange=()=>{r.chosen=check.checked;report();};tr.append(detail);list.append(tr);
+        }
+        report();
+    }
+    function preview(){
+        const cols=Object.fromEntries(keys.map(k=>[k,Number(byId('map-'+k).value)]));
+        const used=Object.values(cols).filter(n=>n>=0);
+        if(cols.sku<0||cols.stock<0||new Set(used).size!==used.length){plans=[];draw();msg.textContent='Выберите отдельные столбцы для кода и остатка.';return;}
+        msg.textContent='';plans=inventoryPlan(rows.slice(Number(header.value)+1),cols,catalog);draw();
+    }
+    function setMap(){
+        const names=rows[Number(header.value)]?.values||[];mappings.replaceChildren();
+        keys.forEach((k,i)=>{
+            const label=node('label',labels[i]),select=node('select');select.id='map-'+k;
+            select.add(new Option('Не выбран','-1'));names.forEach((name,j)=>select.add(new Option(name||'Столбец '+(j+1),j)));
+            select.value=String(columnFor(names,k));select.onchange=preview;label.append(select);mappings.append(label);
+        });preview();
+    }
+    async function setSheet(){
+        const seq=++version;apply.disabled=true;list.replaceChildren();plans=[];
+        try {
+            const result=await book.rows(Number(sheet.value));if(seq!==version)return;rows=result;
+            if(!rows.length)throw Error('Лист пуст.');
+            header.replaceChildren(...rows.slice(0,50).map((r,i)=>new Option('Строка '+r.number+' — '+r.values.filter(Boolean).slice(0,3).join(' / '),i)));
+            header.selectedIndex=Math.max(0,rows.slice(0,50).findIndex(r=>columnFor(r.values,'sku')>=0&&columnFor(r.values,'stock')>=0));
+            setMap();
+        }catch(e){msg.textContent=e.message;plans=[];draw();}
+    }
+    byId('inventory-open').onclick=()=>dialog.showModal();
+    byId('inventory-close').onclick=()=>{if(!busy)dialog.close();};dialog.oncancel=e=>{if(busy)e.preventDefault();};
+    file.onchange=async()=>{
+        const seq=++version;form.hidden=true;plans=[];draw();msg.textContent='Читаем файл…';
+        try{
+            const [b,items]=await Promise.all([readWorkbook(file.files[0]),readCatalog()]);if(seq!==version)return;
+            book=b;catalog=items;sheet.replaceChildren(...b.sheets.map((s,i)=>new Option(s.name,i)));form.hidden=false;await setSheet();
+        }catch(e){if(seq===version)msg.textContent=e.message;}
+    };
+    sheet.onchange=setSheet;header.onchange=setMap;
+    apply.onclick=async()=>{
+        if(busy)return;
+        const selected=plans.filter(r=>r.chosen&&!r.error&&!r.same);
+        if(!selected.length)return;
+        for(const r of selected)if(!r.p && (!r.newName||!Number.isFinite(Number(r.newPrice.replace(',','.')))||Number(r.newPrice.replace(',','.'))<=0)){
+            msg.textContent='Для нового кода '+r.sku+' укажите название и положительную цену или снимите галочку.';return;
+        }
+        busy=true;let done=0;
+        const saved=[];
+        file.disabled=true;form.inert=true;list.inert=true;apply.disabled=true;
+        try{
+            const live=skuIndex(await readCatalog());
+            for(const r of selected){
+                const matches=live.get(r.key)||[],p=matches[0];
+                if(r.p?(matches.length!==1 || p.id!==r.p.id || JSON.stringify(variants(p))!==JSON.stringify(variants(r.p))):matches.length)throw Error('Каталог изменился для '+r.sku+'. Загрузите файл повторно.');
+            }
+            for(const r of selected){
+                msg.textContent='Сохраняем '+r.sku+'…';
+                const p=live.get(r.key)?.[0];
+                const fl=p?variants(p).map(v=>({...v})):[];
+                fl[r.index]={name:r.variant||'Стандарт',...fl[r.index],stock:r.qty};
+                const body=p?Object.fromEntries(['title','price','sku','category','brand','image_url','description'].filter(k=>k in p).map(k=>[k,p[k]])):
+                    {title:r.newName,sku:r.sku,price:Number(r.newPrice.replace(',','.')),category:'',brand:'FIT PRO',image_url:'',description:''};
+                Object.assign(body,{flavors:fl,in_stock:fl.some(v=>units(v)>0)});
+                const res=await fetch(p?'/api/products/'+encodeURIComponent(p.id):'/api/products',{method:p?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+                if(!res.ok)throw Error('Сервер отклонил строку '+r.number+' ('+r.sku+').');
+                if(p)Object.assign(p,body);done++;saved.push(r);
+            }
+            msg.textContent='Сохранено строк: '+done+'.';
+        }catch(e){msg.textContent='Подтверждено строк: '+done+'. '+e.message+' Перед повтором обновите предпросмотр.';}
+        finally{
+            const status=msg.textContent;
+            let verification='';
+            try{
+                catalog=await readCatalog();
+                const current=skuIndex(catalog);
+                const mismatches=saved.filter(r=>{
+                    const matches=current.get(r.key)||[];
+                    return matches.length!==1 || !variants(matches[0])[r.index] || units(variants(matches[0])[r.index])!==r.qty;
+                });
+                if(mismatches.length)verification=' Проверка остатка не прошла: '+mismatches.map(r=>r.sku).join(', ')+'.';
+                preview();await loadAllAdminData();await loadStoreData();
+            }catch{plans=[];draw();form.hidden=true;verification=' Не удалось проверить итоговые остатки. Загрузите файл повторно.';}
+            busy=false;file.disabled=false;form.inert=false;list.inert=false;report();msg.textContent=status+verification;file.value='';
+        }
+    };
+})();
+
 </script>
 </body>
 </html>
