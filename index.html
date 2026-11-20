@@ -599,7 +599,7 @@
     }
     document.addEventListener('fitpro-catalog-loaded', updateCatalogMetrics);
 
-    async function openAnalytics(button) {
+    function activateAdminPanel(button) {
         const nav = button.closest('#fp-crm-nav');
         const host = document.getElementById('fp-crm-panel');
         // Reset the shared tab renderer so an older request cannot overwrite this view.
@@ -611,6 +611,11 @@
             if (!block.contains(nav) && block !== host) block.classList.add('hidden');
         }
         host.classList.remove('hidden');
+        return host;
+    }
+
+    async function openAnalytics(button) {
+        const host = activateAdminPanel(button);
         const metrics = document.createElement('section');
         metrics.id = 'fitpro-analytics';
         metrics.innerHTML = `<h3 class="font-bold text-lg mb-4">Аналитика магазина</h3>
@@ -642,6 +647,80 @@
     }
 
 
+
+    function referralCounts(clients) {
+        const counts = new Map();
+        for (const client of clients) {
+            const code = client.ref_code || client.ref;
+            if (code) counts.set(code, (counts.get(code) || 0) + 1);
+        }
+        return counts;
+    }
+
+    async function openReferrals(button) {
+        const host = activateAdminPanel(button);
+        const view = document.createElement('section');
+        view.innerHTML = `<h3 class="font-bold text-lg mb-3">Реферальные ссылки</h3>
+            <form class="flex flex-wrap gap-2 mb-3" hidden>
+              <input name="partner" aria-label="Название партнёра" placeholder="Название партнёра" required class="border rounded-xl px-3 py-2">
+              <input name="code" aria-label="Код ссылки" placeholder="Код ссылки" pattern="[A-Za-z0-9_\\-]{1,64}" required class="border rounded-xl px-3 py-2">
+              <button class="bg-lime-600 text-white rounded-xl px-4 py-2">Создать</button>
+            </form><div class="space-y-2"></div><p role="status" class="text-sm mt-3"></p>`;
+        host.replaceChildren(view);
+        const form = view.querySelector('form'), list = view.querySelector('.space-y-2'), status = view.querySelector('[role=status]');
+        const active = () => view.isConnected && !host.classList.contains('hidden');
+        async function change(path, options) {
+            const response = await fetch(path, options);
+            if (!response.ok) throw new Error([404,405].includes(response.status) ? 'Сервер пока не поддерживает эту операцию.' : 'Не удалось сохранить изменения.');
+            if (active()) await openReferrals(button);
+        }
+        async function act(control, path, options) {
+            control.disabled = true;
+            try { await change(path, options); }
+            catch (error) { status.textContent = error.message; }
+            finally { control.disabled = false; }
+        }
+        status.textContent = 'Загрузка…';
+        try {
+            if (location.protocol !== 'https:') throw new Error('Откройте админку по HTTPS.');
+            const auth = await fetch('/api/admin/clients', {credentials:'same-origin',cache:'no-store'});
+            if (!auth.ok) throw new Error(auth.status === 401 ? 'Войдите как администратор.' : 'Не удалось загрузить данные о клиентах.');
+            const {clients} = await auth.json();
+            if (!Array.isArray(clients)) throw new Error('Сервер не вернул список клиентов.');
+            const init = await fetch('/api/init', {cache:'no-store'});
+            if (!init.ok) throw new Error('Не удалось загрузить партнёров.');
+            const {partners} = await init.json();
+            if (!Array.isArray(partners)) throw new Error('Сервер не вернул список партнёров.');
+            if (!active()) return;
+            const counts = referralCounts(clients);
+            view.querySelector('h3').textContent = 'Реферальные ссылки (' + partners.length + ')';
+            document.getElementById('crm-count-badge').textContent = clients.length;
+            for (const p of partners) {
+                const code = String(p.code || p.ref_code || p.slug || '');
+                const row = document.createElement('div'), name = document.createElement('strong'), link = document.createElement('code');
+                row.className = 'border rounded-xl p-3 flex flex-wrap items-center gap-3';
+                name.textContent = p.name || p.title || code;
+                row.append(name, 'Клиентов: ' + (counts.get(code) || 0));
+                if (code) { link.className = 'select-all break-all text-xs'; link.textContent = 'https://t.me/fitpro_catalog_mgr_bot?start=' + encodeURIComponent(code); row.append(link); }
+                if (p.id != null) {
+                    const del = document.createElement('button');
+                    del.textContent = 'Удалить'; del.className = 'text-red-600 text-xs';
+                    del.onclick = () => { if (confirm('Удалить ссылку партнёра?')) act(del, '/api/partners/' + encodeURIComponent(p.id), {method:'DELETE'}); };
+                    row.append(del);
+                }
+                list.append(row);
+            }
+            status.textContent = partners.length ? '' : 'Партнёров пока нет.';
+            form.hidden = false;
+            form.onsubmit = e => {
+                e.preventDefault();
+                const name = form.elements.partner.value.trim(), code = form.elements.code.value.trim();
+                if (!name || !/^[A-Za-z0-9_-]{1,64}$/.test(code)) { status.textContent='Проверьте название и код.'; return; }
+                act(form.querySelector('button'), '/api/partners', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,code})});
+            };
+        } catch(error) { status.textContent = error.message; }
+    }
+
     panel.addEventListener('click', event => {
         const button = event.target.closest('#fp-crm-nav [data-fp-tab]');
         if (!button || !tabIds.includes(button.dataset.fpTab)) return;
@@ -651,6 +730,9 @@
         if (button.dataset.fpTab === 'analytics') {
             event.stopPropagation();
             openAnalytics(button);
+        } else if (button.dataset.fpTab === 'partners') {
+            event.stopPropagation();
+            openReferrals(button);
         }
     }, true);
 
