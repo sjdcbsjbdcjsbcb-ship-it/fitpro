@@ -127,7 +127,7 @@
     <section id="view-admin" class="hidden flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-5">
         <div class="admin-heading bg-slate-900 text-white rounded-2xl mb-5">
             <div><h1>Панель управления FIT PRO</h1><p class="text-xs text-slate-300">Синхронизация с базой Supabase</p></div>
-            <div class="admin-client-count">Клиентов: <strong id="crm-count-badge">0</strong></div>
+            <div class="admin-client-count">Клиентов: <strong id="crm-count-badge">—</strong></div>
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
@@ -198,7 +198,6 @@
                 description: p.description || "", flavors: Array.isArray(p.flavors) && p.flavors.length ? p.flavors : [{ name: "Стандарт", stock: 10 }]
             }));
             products.forEach(p => { selectedFlavorByProduct[p.id] = 0; });
-            document.getElementById('crm-count-badge').textContent = (data.clients || []).length;
             renderFilters(); renderProducts(); updateCartUI(); renderAdminTables();
         }
         function renderFilters() {
@@ -269,6 +268,6 @@
         async function deleteProduct(id) { await fetch('/api/products/' + id, { method: 'DELETE' }); showToast("Удалено"); loadStoreData(); }
         loadStoreData();
     </script>
-<script src="/admin.js?v=33"></script>
+<script src="/admin.js?v=34"></script>
 </body>
 </html>
