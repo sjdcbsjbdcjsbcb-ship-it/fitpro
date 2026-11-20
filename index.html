@@ -113,6 +113,18 @@
 #catalog-grid .product-card img,#products-grid .product-card img {height:auto!important;aspect-ratio:1/1;object-fit:contain!important;background:white}
 #products-grid .product-img-box {height:auto;aspect-ratio:1/1}
 </style>
+<style>
+@media (min-width: 1024px) {
+  #view-store { max-width: 1360px; padding-inline: 18px; }
+  body:has(#view-store:not(.hidden)) > header > .max-w-6xl { max-width: 1360px; padding-inline: 18px; }
+  #view-store .fp-left-sidebar { flex: 0 0 clamp(190px, 16vw, 218px); min-width: 0; }
+  #view-store .fp-store-layout { gap: 16px; }
+  #view-store #products-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  #products-grid .product-card h3 { font-size: 1rem; line-height: 1.35; }
+  #products-grid .product-card button { max-width: 100%; }
+  #products-grid .product-card > div:last-child { flex-wrap: wrap; gap: 5px; }
+}
+</style>
 </head>
 <body class="antialiased min-h-screen flex flex-col">
     <div id="admin-top-bar" class="hidden bg-slate-900 text-white text-xs py-2 px-3 sm:px-6 sticky top-0 z-50 shadow-md">
