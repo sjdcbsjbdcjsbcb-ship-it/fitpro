@@ -271,8 +271,19 @@
                 document.getElementById('order-tg').value = un || String(u.id);
             }
         }
+        let catalogTotals = { products: null, partners: null, orders: null, revenue: null };
         async function loadStoreData() {
             const res = await fetch('/api/init'), data = await res.json();
+            if (!res.ok) throw new Error('Не удалось загрузить каталог');
+            const orderTotals = Array.isArray(data.orders) ? data.orders.map(order => order.total) : null;
+            catalogTotals = {
+                products: Array.isArray(data.products) ? data.products.length : null,
+                partners: Array.isArray(data.partners) ? data.partners.length : null,
+                orders: orderTotals?.length ?? null,
+                revenue: orderTotals && orderTotals.every(t => t != null && t !== '' && Number.isFinite(Number(t)))
+                    ? orderTotals.reduce((sum, t) => sum + Number(t), 0) : null
+            };
+            document.dispatchEvent(new Event('fitpro-catalog-loaded'));
             products = (data.products || []).map(p => ({
                 id: p.id, sku: p.sku || `FP-${p.id}`, title: p.title, category: p.category || "Пептиды",
                 brand: p.brand || "GLEID", price: Number(p.price),
@@ -578,12 +589,69 @@
     const tabIds = ['products', 'partners', 'clients', 'analytics'];
     const param = 'admin_tab';
 
+    function updateCatalogMetrics() {
+        const metrics = document.getElementById('fitpro-analytics');
+        if (!metrics) return;
+        for (const [key, value] of Object.entries(catalogTotals)) {
+            metrics.querySelector('[data-metric="' + key + '"]').textContent =
+                value == null ? 'Нет данных' : value.toLocaleString('ru-RU') + (key === 'revenue' ? ' ₽' : '');
+        }
+    }
+    document.addEventListener('fitpro-catalog-loaded', updateCatalogMetrics);
+
+    async function openAnalytics(button) {
+        const nav = button.closest('#fp-crm-nav');
+        const host = document.getElementById('fp-crm-panel');
+        // Reset the shared tab renderer so an older request cannot overwrite this view.
+        const productsButton = nav.querySelector('[data-fp-tab="products"]');
+        productsButton.onclick();
+        button.className = productsButton.className;
+        productsButton.className = nav.querySelector('[data-fp-tab="clients"]').className;
+        for (const block of panel.children) {
+            if (!block.contains(nav) && block !== host) block.classList.add('hidden');
+        }
+        host.classList.remove('hidden');
+        const metrics = document.createElement('section');
+        metrics.id = 'fitpro-analytics';
+        metrics.innerHTML = `<h3 class="font-bold text-lg mb-4">Аналитика магазина</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            ${[['clients','Всего в базе'],['referred','Пришли по рефералкам'],['orders','Заказов оформлено'],['revenue','Сумма заказов']].map(([key,label]) =>
+                '<div class="p-4 bg-gray-50 rounded-xl border"><div class="text-xs text-gray-500">'+label+'</div><div class="text-xl font-bold mt-1" data-metric="'+key+'">—</div></div>').join('')}
+            </div><p class="text-xs text-gray-500">Товаров в каталоге: <b data-metric="products"></b> · Реферальных кодов: <b data-metric="partners"></b></p>
+            <p role="status" class="text-sm mt-2"></p>`;
+        host.replaceChildren(metrics);
+        updateCatalogMetrics();
+        const status = metrics.querySelector('[role=status]');
+        status.textContent = 'Загрузка данных о клиентах…';
+        try {
+            if (location.protocol !== 'https:') throw new Error('Для входа откройте админку по HTTPS.');
+            const response = await fetch('/api/admin/clients', {credentials:'same-origin', cache:'no-store'});
+            if (!response.ok) throw new Error(response.status === 401 ? 'Для просмотра войдите как администратор.' : 'Не удалось загрузить данные о клиентах.');
+            const {clients} = await response.json();
+            if (!Array.isArray(clients)) throw new Error('Сервер не вернул список клиентов.');
+            if (!metrics.isConnected || host.classList.contains('hidden')) return;
+            metrics.querySelector('[data-metric="clients"]').textContent = clients.length;
+            metrics.querySelector('[data-metric="referred"]').textContent = clients.filter(c => c.ref_code || c.ref).length;
+            document.getElementById('crm-count-badge').textContent = clients.length;
+            status.textContent = '';
+        } catch (error) {
+            if (!metrics.isConnected || host.classList.contains('hidden')) return;
+            document.getElementById('crm-count-badge').textContent = '—';
+            status.textContent = error.message;
+        }
+    }
+
+
     panel.addEventListener('click', event => {
         const button = event.target.closest('#fp-crm-nav [data-fp-tab]');
         if (!button || !tabIds.includes(button.dataset.fpTab)) return;
         const url = new URL(location.href);
         url.searchParams.set(param, button.dataset.fpTab);
         history.replaceState(history.state, '', url);
+        if (button.dataset.fpTab === 'analytics') {
+            event.stopPropagation();
+            openAnalytics(button);
+        }
     }, true);
 
     function restoreTab() {
