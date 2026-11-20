@@ -151,6 +151,23 @@
 #inventory-dialog{width:min(850px,calc(100% - 20px))}#inventory-dialog td,#inventory-dialog th{padding:7px;border-bottom:1px solid #e3e8df}#inventory-rows input:not([type=checkbox]){min-width:110px}#inventory-dialog input[type=checkbox],#item-form input[type=checkbox]{width:auto}
 #item-specs,#arrival-options{margin:12px 0}#item-specs summary,#arrival-options summary{margin-bottom:8px}#item-form .eta-check{display:flex;align-items:center}
 </style>
+<style>
+.quick-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:16px 0}
+.quick-fields{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));align-items:end;gap:10px}
+.quick-fields .stock-yes{color:#29671d!important;background:#f2f8ef!important;border-color:#aed1a1!important}
+.quick-fields .stock-no{color:#a02823!important;background:#fff3f2!important;border-color:#e5b1ae!important}
+.quick-arrival label:first-child{display:flex;align-items:center;gap:5px;font-size:12px}
+.quick-fields input[type=checkbox]{width:auto}.quick-buttons{display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+.quick-buttons small{flex-basis:100%}.product-gallery{min-width:0;width:100%;position:relative;margin-bottom:10px}
+.gallery-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
+.gallery-track::-webkit-scrollbar{display:none}
+.gallery-track>img{display:block;flex:0 0 100%;min-width:0;max-width:100%;scroll-snap-align:start;object-fit:contain}
+.gallery-nav{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:#526175}
+.gallery-nav button{width:32px;height:30px;font-size:20px;line-height:1;border-radius:8px;background:#f0f5ea;color:#416b13}
+.gallery-empty{display:grid;place-items:center;height:180px;background:#f8fafc;color:#64748b;font-size:12px}
+@media(min-width:1024px){#products-grid .product-card .product-gallery{width:calc(100% + 24px);margin:-12px -12px 12px}}
+@media(max-width:600px){.quick-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-row .catalog-actions{gap:3px}}
+</style>
 </head>
 <body class="antialiased min-h-screen flex flex-col">
     <div id="admin-top-bar" class="hidden bg-slate-900 text-white text-xs py-2 px-3 sm:px-6 sticky top-0 z-50 shadow-md">
@@ -244,7 +261,11 @@
                 <div class="format-bar"><button type="button" data-format="bold" aria-label="Жирный"><b>Ж</b></button><button type="button" data-format="underline" aria-label="Подчёркнутый"><u>Ч</u></button></div>
                 <div contenteditable="true" role="textbox" aria-multiline="true" aria-label="Описание" id="item-description"></div>
                 <div class="item-photo"><div class="photo-frame"><img id="item-preview" alt="Предпросмотр фото" hidden><span id="photo-empty">Нет фото</span></div>
-                    <div><label>Фото товара<input id="item-file" type="file" accept="image/jpeg,image/png,image/webp"></label><details><summary>Фото по ссылке</summary><input id="item-url" aria-label="Адрес фото" placeholder="https://…"></details><button id="remove-photo" type="button" hidden>Убрать фото</button></div>
+                    <div><label>Главное фото<input id="item-file" type="file" accept="image/jpeg,image/png,image/webp"></label><details><summary>Фото по ссылке</summary><input id="item-url" aria-label="Адрес фото" placeholder="https://…"></details><button id="remove-photo" type="button" hidden>Убрать фото</button></div>
+                </div>
+                <div class="item-photo"><div class="photo-frame"><img id="composition-preview" alt="Предпросмотр состава" hidden><span id="composition-empty">Нет фото</span></div>
+                    <div><label>Фото состава · необязательно<input id="composition-file" type="file" accept="image/jpeg,image/png,image/webp"></label>
+                    <button id="remove-composition" type="button" hidden>Убрать фото состава</button></div>
                 </div>
                 <p id="item-status" role="status"></p><div class="catalog-actions"><button type="button" data-close>Отмена</button><button class="primary" type="submit">Сохранить товар</button></div>
             </form>
@@ -261,7 +282,7 @@
         <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5">
             <div class="flex justify-between items-center mb-3"><span id="modal-prod-brand" class="text-xs font-bold text-iherb-green bg-iherb-light px-2.5 py-1 rounded-lg"></span><button onclick="closeProductModal()" class="text-gray-500 font-bold text-lg">X</button></div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div class="product-img-box h-60 rounded-2xl border p-3"><img id="modal-prod-img" src=""></div>
+                <div id="modal-gallery" class="min-w-0"></div>
                 <div><div class="text-xs text-gray-400" id="modal-prod-cat"></div><h2 id="modal-prod-title" class="text-lg font-extrabold mt-1"></h2><div id="modal-prod-price" class="text-2xl font-extrabold mt-2"></div><div id="modal-prod-desc" class="text-xs text-gray-600 mt-3"></div><div id="modal-action-area" class="mt-5"></div></div>
             </div>
         </div>
@@ -398,6 +419,32 @@ function updateCartUI() {
         row.append(info,controls,del);list.append(row);
     });
 }
+function productGallery(p, initial = 0, inCard = false) {
+    const photos = [[p.image_url,'Упаковка'],[specOf(p).compositionPhoto,'Состав']].filter(([url])=>url);
+    const box=node('div',null,'product-gallery');
+    if(!photos.length){box.append(node('div','Нет фото','gallery-empty'));return box;}
+    const track=node('div',null,'gallery-track');
+    box.append(track);
+    for(const [url,label] of photos){
+        const img=node('img');img.src=url;img.alt=p.title+' — '+label;img.loading=inCard?'lazy':'eager';img.draggable=false;
+        track.append(img);
+    }
+    if(photos.length===1)return box;
+    let current=initial===1?1:0;
+    const nav=node('div',null,'gallery-nav'),caption=node('span');
+    function paint(){caption.textContent=photos[current][1]+' · '+(current+1)+'/2';}
+    function move(i){current=i;track.scrollLeft=current*track.clientWidth;paint();}
+    function arrow(label,sign){
+        const b=action(sign,e=>{e.stopPropagation();move(1-current);});b.ariaLabel=label;return b;
+    }
+    nav.append(arrow('Предыдущее фото','‹'),caption,arrow('Следующее фото','›'));
+    nav.onclick=e=>e.stopPropagation();box.append(nav);
+    track.onscroll=()=>{if(track.clientWidth){current=Math.min(1,Math.round(track.scrollLeft/track.clientWidth));paint();}};
+    if(inCard)track.onclick=e=>{e.stopPropagation();openProductModal(p.id,current);};
+    paint();if(current)requestAnimationFrame(()=>move(current));
+    return box;
+}
+
 function renderStockGrid() {
     const grid=byId('products-grid'), empty=byId('empty-products');
     const q=(byId('search-input-desktop')?.value||searchQuery||'').trim().toLowerCase();
@@ -408,8 +455,7 @@ function renderStockGrid() {
     for(const p of list) {
         const card=node('div',null,'product-card bg-white rounded-2xl border border-slate-200 p-3.5 flex flex-col justify-between shadow-sm');
         const detail=node('div',null,'cursor-pointer');detail.onclick=()=>openProductModal(p.id);
-        if(p.image_url){const img=node('img');img.src=p.image_url;img.alt=p.title;img.loading='lazy';img.className='w-full object-contain mb-3';detail.append(img);}
-        else detail.append(node('div','Нет фото','w-full h-44 flex items-center justify-center text-xs text-slate-400'));
+        detail.append(productGallery(p,0,true));
         detail.append(node('div',p.category,'text-xs text-lime-700'),node('h3',p.title,'font-bold text-sm text-slate-900'));
         const summary=featureLine(specOf(p));if(summary){const line=node('div',summary,'product-spec');line.title=summary;detail.append(line);}
         detail.append(availabilityBadge(p));
@@ -420,10 +466,10 @@ function renderStockGrid() {
         card.append(detail,footer);grid.append(card);
     }
 }
-function openProductModal(id) {
+function openProductModal(id, initialPhoto=0) {
     const p=storeItem(id);if(!p)return;
     for(const [field,val] of Object.entries({brand:p.brand,cat:p.category,title:p.title,price:p.price.toLocaleString('ru-RU')+' ₽'}))byId('modal-prod-'+field).textContent=val;
-    byId('modal-prod-desc').innerHTML=p.description;byId('modal-prod-img').src=p.img;
+    byId('modal-prod-desc').innerHTML=p.description;byId('modal-gallery').replaceChildren(productGallery(p,initialPhoto));
     const area=byId('modal-action-area');area.replaceChildren();
     const spec=featureLine(specOf(p));if(spec)area.append(node('div',spec,'text-sm text-gray-600'));
     area.append(availabilityBadge(p));
@@ -521,28 +567,85 @@ function openProductModal(id) {
         const rows = filtered(adminState.products, el('item-search').value, el('item-filter').value);
         list.replaceChildren();
         if (!rows.length) list.textContent = 'Товары не найдены';
-        for (const p of rows) {
-            const row = document.createElement('div'), identity = document.createElement('div'), info = document.createElement('div');
-            row.className = 'catalog-row'; identity.className = 'item-identity';
-            const thumb = document.createElement(p.image_url ? 'img' : 'span');
-            if (p.image_url) { thumb.src=p.image_url; thumb.alt=''; thumb.loading='lazy'; }
-            else thumb.className='blank-thumb';
-            const title = document.createElement('strong'), meta = document.createElement('small');
-            title.textContent=p.title;
-            const details = [p.sku, p.category];
-            if (Array.isArray(p.flavors)) details.push('Остаток: ' + p.flavors.reduce((sum,f)=>sum+(Number(f.stock)||0),0));
-            meta.textContent=details.filter(Boolean).join(' · ');
-            info.append(title,meta); identity.append(thumb,info);
-            const price = document.createElement('span'); price.textContent=Number(p.price).toLocaleString('ru-RU')+' ₽';
-            const actions = document.createElement('div'); actions.className='catalog-actions';
-            actions.append(button('Изменить',()=>openItem(p)),button('Удалить',async event=>{
-                if (!confirm('Удалить товар «'+p.title+'»?')) return;
-                event.currentTarget.disabled=true;
-                try { await request('/api/products/'+encodeURIComponent(p.id),{method:'DELETE'}); await refresh(); }
-                catch (err) { alert(err.message); drawProducts(); }
-            }));
-            row.append(identity,price,actions); list.append(row);
-        }
+        for(const p of rows)list.append(buildProductRow(p));
+    }
+    async function uploadImage(blob,name) {
+        const data=new FormData();data.append('file',blob,name);
+        const result=await (await request('/api/upload-photo',{method:'POST',body:data})).json();
+        if(!result.url || result.ok===false)throw Error('Не удалось загрузить фото.');
+        return result.url;
+    }
+    function quickFields(p,row,thumbBox) {
+        const fields=node('form',null,'quick-fields'), status=node('small');
+        const save=node('button','Сохранить','primary');save.type='submit';save.hidden=true;
+        const stocks=[];
+        function labeled(label,control){const field=node('label',label);field.append(control);fields.append(field);return control;}
+        function input(type,value){const e=node('input');e.type=type;e.value=value;return e;}
+        const originalVariants=variants(p).length?variants(p):[{name:'Стандарт',stock:0}];
+        originalVariants.forEach(v=>{
+            const qty=input('number',units(v));qty.min='0';qty.step='1';qty.required=true;
+            const tint=()=>{qty.className=Number(qty.value)>0?'stock-yes':'stock-no';};
+            tint();qty.oninput=tint;stocks.push(qty);
+            labeled(originalVariants.length===1?'Остаток, шт.':v.name+' · шт.',qty);
+        });
+        const price=labeled('Цена, ₽',input('number',p.price));price.min='0.01';price.step='0.01';price.required=true;
+        const cats=[...new Set([...adminState.categories,p.category].filter(Boolean))];
+        const cat=labeled('Категория',node('select'));optionList(cat,cats,'Без категории',p.category);
+        const s=specOf(p),expected=input('checkbox',''),eta=input('date',s.eta||'');
+        expected.checked=!!(s.expected||s.eta);
+        const etaField=node('div',null,'quick-arrival'), etaLabel=node('label','Дата прибытия'), expectedLabel=node('label');
+        expectedLabel.append(expected,document.createTextNode('Ожидается'));etaLabel.append(eta);etaField.append(expectedLabel,etaLabel);fields.append(etaField);
+        expected.onchange=()=>{if(!expected.checked)eta.value='';};
+        eta.oninput=()=>{if(eta.value)expected.checked=true;};
+        const file=input('file','');file.accept='image/png,image/jpeg,image/webp';file.className='sr-only';
+        const choose=button('Фото',()=>file.click());choose.ariaLabel='Заменить главное фото '+p.title;
+        let uploaded='',previewURL='';
+        function mark(){save.hidden=false;status.textContent='';}
+        file.onchange=()=>{
+            if(!file.files[0])return;mark();uploaded='';
+            if(previewURL)URL.revokeObjectURL(previewURL);previewURL=URL.createObjectURL(file.files[0]);
+            thumbBox.src=previewURL;thumbBox.hidden=false;
+        };
+        const footer=node('div',null,'quick-buttons');footer.append(choose,file,save,status);
+        status.setAttribute('role','status');fields.append(footer);fields.oninput=mark;fields.onchange=mark;
+        fields.onsubmit=async event=>{
+            event.preventDefault();if(fields.inert)return;
+            fields.inert=true;status.textContent='Сохранение…';
+            try{
+                const result=await (await request('/api/init',{cache:'no-store'})).json();
+                const live=result.products?.find(v=>v.id===p.id);
+                if(!live)throw Error('Товар больше не найден.');
+                if(JSON.stringify(live.flavors)!==JSON.stringify(p.flavors)||String(live.price)!==String(p.price)||live.category!==p.category||live.image_url!==p.image_url)
+                    throw Error('Товар изменился. Обновите список перед сохранением.');
+                const fl=originalVariants.map((v,i)=>({...v,stock:Number(stocks[i].value)}));
+                const spec={...specOf(live)};delete spec.expected;delete spec.eta;
+                if(expected.checked)spec.expected=true;if(eta.value)spec.eta=eta.value;
+                if(Object.keys(spec).length)fl[0].fitpro=spec;else delete fl[0].fitpro;
+                if(file.files[0]&&!uploaded){const photo=await squarePhoto(file.files[0]);uploaded=await uploadImage(photo,'product.jpg');}
+                const body={title:live.title,sku:live.sku,brand:live.brand,description:live.description,
+                    category:cat.value,price:Number(price.value),image_url:uploaded||live.image_url||'',flavors:fl,in_stock:fl.some(v=>units(v)>0)};
+                await request('/api/products/'+encodeURIComponent(p.id),json('PUT',body));
+                Object.assign(p,body);
+                const fresh=buildProductRow(p);row.replaceWith(fresh);
+                if(!filtered([p],el('item-search').value,el('item-filter').value).length)fresh.remove();
+                else fresh.querySelector('[role=status]').textContent='Сохранено';
+                await loadStoreData();
+            }catch(err){status.textContent=err.message;}finally{fields.inert=false;if(previewURL&&!row.isConnected)URL.revokeObjectURL(previewURL);}
+        };
+        return fields;
+    }
+    function buildProductRow(p){
+        const row=node('div',null,'catalog-row quick-row'),identity=node('div',null,'item-identity'),info=node('div');
+        const thumb=node('img');thumb.alt='';thumb.loading='lazy';thumb.hidden=!p.image_url;if(p.image_url)thumb.src=p.image_url;
+        info.append(node('strong',p.title),node('small',p.sku||'Без кода'));identity.append(thumb,info);
+        const actions=node('div',null,'catalog-actions');
+        actions.append(button('Изменить',()=>openItem(p)),button('Удалить',async event=>{
+            if(!confirm('Удалить товар «'+p.title+'»?'))return;
+            const b=event.currentTarget;b.disabled=true;
+            try{await request('/api/products/'+encodeURIComponent(p.id),{method:'DELETE'});await refresh();}
+            catch(err){alert(err.message);b.disabled=false;}
+        }));
+        row.append(identity,actions,quickFields(p,row,thumb));return row;
     }
     function renderCategories() {
         const list=el('cat-list'), query=lower(el('cat-search').value);
@@ -632,6 +735,7 @@ function openProductModal(id) {
         el('stock-options').hidden=(product?.flavors?.length||0)>1;
         el('item-stock').value=units(variants(product)[0]);
         const spec=specOf(product);
+        resetComposition(spec.compositionPhoto||'');
         for(const k of ['amount','unit','servings','taste','eta'])el('spec-'+k).value=spec[k]||(k==='unit'?'г':'');
         el('spec-expected').checked=!!(spec.expected||spec.eta);
         el('item-specs').open=!!featureLine(spec);el('arrival-options').open=el('spec-expected').checked;
@@ -651,21 +755,39 @@ function openProductModal(id) {
         const scale=Math.min(size/w,size/h);
         return {w:w*scale,h:h*scale,x:(size-w*scale)/2,y:(size-h*scale)/2};
     }
-    async function preparePhoto(file) {
-        const version=++photoVersion, blobUrl=URL.createObjectURL(file);
+    async function squarePhoto(file) {
+        const url=URL.createObjectURL(file);
         try {
-            const image=new Image();image.src=blobUrl;await image.decode();
-            if (version!==photoVersion) return;
+            const image=new Image();image.src=url;await image.decode();
             const canvas=document.createElement('canvas');canvas.width=canvas.height=1000;
-            const ctx=canvas.getContext('2d'), rect=fitDimensions(image.naturalWidth,image.naturalHeight,1000);
-            ctx.fillStyle='white';ctx.fillRect(0,0,1000,1000);
-            ctx.drawImage(image,rect.x,rect.y,rect.w,rect.h);
+            const ctx=canvas.getContext('2d'),rect=fitDimensions(image.naturalWidth,image.naturalHeight,1000);
+            ctx.fillStyle='white';ctx.fillRect(0,0,1000,1000);ctx.drawImage(image,rect.x,rect.y,rect.w,rect.h);
             const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.9));
-            if (!blob) throw new Error('Не удалось обработать фото.');
-            if(version!==photoVersion)return;
-            pendingPhoto=blob;photo='';el('item-url').value='';preview(canvas.toDataURL('image/jpeg',0.8));
-            el('item-status').textContent='';
-        } finally { URL.revokeObjectURL(blobUrl); }
+            if(!blob)throw Error('Не удалось обработать фото.');return blob;
+        }finally{URL.revokeObjectURL(url);}
+    }
+    let mainObjectURL='', labelObjectURL='', labelPhoto='';
+    function showComposition(url) {
+        const img=el('composition-preview');img.hidden=!url;
+        if(url)img.src=url;else img.removeAttribute('src');
+        el('composition-empty').hidden=!!url;el('remove-composition').hidden=!url;
+    }
+    function resetComposition(url='') {
+        if(labelObjectURL)URL.revokeObjectURL(labelObjectURL);
+        labelObjectURL='';labelPhoto=url;el('composition-file').value='';showComposition(url);
+    }
+    el('composition-file').onchange=e=>{
+        const file=e.target.files[0];if(!file)return;
+        if(labelObjectURL)URL.revokeObjectURL(labelObjectURL);
+        labelObjectURL=URL.createObjectURL(file);showComposition(labelObjectURL);
+    };
+    el('remove-composition').onclick=()=>resetComposition();
+    async function preparePhoto(file){
+        const version=++photoVersion, blob=await squarePhoto(file);
+        if(version!==photoVersion)return;
+        if(mainObjectURL)URL.revokeObjectURL(mainObjectURL);
+        mainObjectURL=URL.createObjectURL(blob);pendingPhoto=blob;photo='';el('item-url').value='';
+        preview(mainObjectURL);el('item-status').textContent='';
     }
     let preparing=Promise.resolve();
     el('item-file').onchange=e=>{
@@ -700,7 +822,13 @@ function openProductModal(id) {
             if(editing && !el('stock-options').hidden && stock!==units(variants(editing)[0])) {
                 body.in_stock=stock>0;body.flavors=[{name:'Стандарт',...editing.flavors?.[0],stock}];
             }
+            const labelFile=el('composition-file').files[0];
+            if(labelFile){
+                labelPhoto=await uploadImage(labelFile,labelFile.name);
+                resetComposition(labelPhoto);
+            }
             const feature={};
+            if(labelPhoto)feature.compositionPhoto=labelPhoto;
             for(const key of ['amount','servings','taste','eta']){const v=el('spec-'+key).value.trim();if(v)feature[key]=v;}
             if(feature.amount)feature.unit=el('spec-unit').value;
             if(el('spec-expected').checked||feature.eta)feature.expected=true;
@@ -1101,3 +1229,4 @@ function inventoryPlan(rows,cols,items){
 </script>
 </body>
 </html>
+
