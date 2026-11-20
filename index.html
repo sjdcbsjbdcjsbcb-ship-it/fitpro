@@ -238,7 +238,7 @@
         </div>
         <dialog id="inventory-dialog" class="catalog-dialog" aria-labelledby="inventory-heading"><div class="catalog-workspace">
             <div class="catalog-head"><h2 id="inventory-heading">Импорт остатков</h2><button id="inventory-close" aria-label="Закрыть">✕</button></div>
-            <label>Файл Excel (.xlsx)<input id="inventory-file" type="file" accept=".xlsx"></label>
+            <label>Файл Excel (.xls или .xlsx)<input id="inventory-file" type="file" accept=".xls,.xlsx"></label>
             <p class="text-sm text-gray-600 my-2">Нужны код товара и остаток. Для новых товаров укажите название и цену. Отметьте строки для сохранения.</p>
             <div id="inventory-controls" hidden><div class="catalog-fields"><label>Лист<select id="inventory-sheet"></select></label><label>Заголовки<select id="inventory-header"></select></label></div>
             <details><summary>Сопоставить столбцы</summary><div class="catalog-fields" id="inventory-map"></div></details></div>
@@ -339,7 +339,7 @@
             };
             document.dispatchEvent(new Event('fitpro-catalog-loaded'));
             products = (data.products || []).filter(shownInStore).map(p => ({
-                id: p.id, sku: p.sku || "", title: p.title, category: p.category || "Пептиды",
+                id: p.id, sku: p.sku || "", title: p.title, category: p.category || "Все товары",
                 brand: p.brand || "GLEID", price: Number(p.price),
                 img: p.image_url || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=500&q=80",
                 description:p.description||"", image_url:p.image_url||"", flavors:Array.isArray(p.flavors)?p.flavors:[]
@@ -1036,7 +1036,108 @@ function openProductModal(id, initialPhoto=0) {
 </script>
 <script>
 // Read worksheet values locally; the workbook itself is never uploaded.
+// Legacy Excel 97–2003: read the Workbook stream and cached cell values only.
+async function readLegacyWorkbook(file) {
+    if(file.size>20*1024*1024)throw Error('Размер книги превышает 20 МБ.');
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const view=b=>new DataView(b.buffer,b.byteOffset,b.byteLength);
+    const u16=(b,i)=>view(b).getUint16(i,true),u32=(b,i)=>view(b).getUint32(i,true);
+    const end=0xfffffffe, free=0xffffffff;
+    if(u32(bytes,0)!==0xe011cfd0 || u32(bytes,4)!==0xe11ab1a1)throw Error('Файл не является книгой Excel 97–2003 (.xls).');
+    const size=2**u16(bytes,30);
+    if(![512,4096].includes(size))throw Error('Неизвестный размер блока XLS.');
+    function sector(i){const at=(i+1)*size;if(at+size>bytes.length)throw Error('Повреждён блок XLS.');return bytes.subarray(at,at+size);}
+    const ids=b=>Array.from({length:b.length/4},(_,i)=>u32(b,4*i));
+    const fatIds=ids(bytes.subarray(76,512)).filter(i=>i!==free);
+    let next=u32(bytes,68);const visited=new Set();
+    while(next!==end && next!==free){if(visited.has(next))throw Error('Повреждена таблица XLS.');visited.add(next);const page=ids(sector(next));next=page.pop();fatIds.push(...page.filter(i=>i!==free));}
+    const fat=fatIds.flatMap(i=>ids(sector(i)));
+    function chain(first,table,block,limit=bytes.length){
+        const parts=[],seen=new Set();let n=0;
+        for(let i=first;i!==end && n<limit;i=table[i]){
+            if(i>=table.length || seen.has(i))throw Error('Повреждена цепочка блоков XLS.');
+            seen.add(i);const part=block(i);if(!part.length)throw Error('Пустой блок XLS.');parts.push(part);n+=part.length;
+        }
+        const out=new Uint8Array(Math.min(limit,n));let pos=0;
+        for(const p of parts){const part=p.subarray(0,out.length-pos);out.set(part,pos);pos+=part.length;}
+        return out;
+    }
+    const decoder=new TextDecoder('utf-16le'),dir=chain(u32(bytes,48),fat,sector);
+    let root,work;
+    for(let i=0;i+128<=dir.length;i+=128){
+        const name=decoder.decode(dir.subarray(i,i+Math.max(0,u16(dir,i+64)-2)));
+        const record={first:u32(dir,i+116),len:u32(dir,i+120)};
+        if(dir[i+66]===5)root=record;
+        if(dir[i+66]===2 && /^(Workbook|Book)$/i.test(name))work=record;
+    }
+    if(!work || work.len>bytes.length)throw Error('В XLS не найден лист с данными.');
+    let book;
+    if(work.len>=u32(bytes,56))book=chain(work.first,fat,sector,work.len);
+    else{
+        const mini=chain(root.first,fat,sector,root.len),miniFat=ids(chain(u32(bytes,60),fat,sector,u32(bytes,64)*size));
+        book=chain(work.first,miniFat,i=>mini.subarray(i*64,(i+1)*64),work.len);
+    }
+    function record(at){const len=u16(book,at+2),to=at+4+len;if(to>book.length)throw Error('Неполная запись XLS.');return {type:u16(book,at),b:book.subarray(at+4,to),to};}
+    function chars(b,wide){return wide?decoder.decode(b):Array.from(b,x=>String.fromCharCode(x)).join('');}
+    const strings=[],sheets=[],formats=new Map(),styles=[];
+    function shared(parts){
+        let page=0,pos=8;
+        function byte(){if(pos===parts[page].length){page++;pos=0;}if(!parts[page])throw Error('Повреждена строка XLS.');return parts[page][pos++];}
+        function word(){return byte()+256*byte();}
+        const count=u32(parts[0],4);
+        for(let i=0;i<count;i++){
+            let n=word(),flags=byte(),wide=flags&1;
+            const rich=flags&8?word():0, ext=flags&4?word()+65536*word():0;
+            let text='';
+            while(n){
+                if(pos===parts[page].length){page++;pos=0;wide=byte()&1;}
+                const step=wide?2:1,k=Math.min(n,Math.floor((parts[page].length-pos)/step));
+                if(!k)throw Error('Повреждён текст XLS.');
+                text+=chars(parts[page].subarray(pos,pos+k*step),wide);pos+=k*step;n-=k;
+            }
+            for(let skip=rich*4+ext;skip>0;skip--)byte();
+            strings.push(text);
+        }
+    }
+    for(let at=0;at+4<=book.length;){
+        const {type,b,to}=record(at);at=to;
+        if(type===0x000a)break;
+        if(type===0x002f)throw Error('Снимите пароль с книги перед импортом.');
+        if(type===0x85 && b[5]===0)sheets.push({at:u32(b,0),name:chars(b.subarray(8,8+b[6]*(b[7]&1?2:1)),b[7]&1)});
+        if(type===0xe0)styles.push(u16(b,2));
+        if(type===0x41e)formats.set(u16(b,0),chars(b.subarray(5,5+u16(b,2)*(b[4]&1?2:1)),b[4]&1));
+        if(type===0xfc){const parts=[b];while(at+4<=book.length && u16(book,at)===0x3c){const r=record(at);parts.push(r.b);at=r.to;}shared(parts);}
+    }
+    function rk(raw){let v;if(raw&2)v=raw>>2;else{const d=new DataView(new ArrayBuffer(8));d.setUint32(4,raw&0xfffffffc,true);v=d.getFloat64(0,true);}return raw&1?v/100:v;}
+    async function rows(index){
+        const result=new Map();
+        function cell(r,c,xf,value){
+            if(value==null || value==='')return;
+            let str=String(value);
+            const fmt=formats.get(styles[xf]);if(typeof value==='number' && /^0+$/.test(fmt) && Number.isSafeInteger(value))str=str.padStart(fmt.length,'0');
+            if(!result.has(r))result.set(r,{number:r+1,values:[]});
+            result.get(r).values[c]=str.trim();
+        }
+        for(let at=sheets[index].at;at+4<=book.length;){
+            const {type,b,to}=record(at);at=to;
+            if(type===10)break;
+            if(![0xfd,0x203,0x27e,0xbd,0x6,0x204,0x205].includes(type))continue;
+            const r=u16(b,0),c=u16(b,2),xf=u16(b,4);
+            if(type===0xbd){for(let j=4,col=c;j+6<=b.length-2;j+=6,col++)cell(r,col,u16(b,j),rk(u32(b,j+2)));}
+            else if(type===0xfd)cell(r,c,xf,strings[u32(b,6)]);
+            else if(type===0x204)cell(r,c,xf,chars(b.subarray(9),b[8]&1));
+            else if(type===0x205)cell(r,c,xf,b[7]?'#ОШИБКА':String(!!b[6]));
+            else if(type===0x27e)cell(r,c,xf,rk(u32(b,6)));
+            else if(type===0x203 || u16(b,12)!==0xffff)cell(r,c,xf,view(b).getFloat64(6,true));
+            else if(b[6]===2)cell(r,c,xf,'#ОШИБКА');
+        }
+        return [...result.values()].sort((a,b)=>a.number-b.number);
+    }
+    if(!sheets.length)throw Error('Нет листов Excel 97–2003.');return {sheets,rows};
+}
+
 async function readWorkbook(file) {
+    if(/\.xls$/i.test(file.name))return readLegacyWorkbook(file);
     if(!/\.xlsx$/i.test(file.name))throw Error('Сохраните файл в формате .xlsx.');
     if(file.size>20*1024*1024)throw Error('Размер книги превышает 20 МБ.');
     const bytes=new Uint8Array(await file.arrayBuffer()), view=new DataView(bytes.buffer), decode=new TextDecoder();
@@ -1105,13 +1206,26 @@ async function readWorkbook(file) {
 }
 const stockAliases={
     sku:['код товара','код','артикул','sku','код номенклатуры','штрихкод'],
-    stock:['остаток','остатки','остаток шт','количество','кол-во','доступно','свободный остаток','на складе'],
+    stock:['доступно','остаток','остатки','остаток шт','количество','кол-во','свободный остаток','на складе'],
     title:['наименование','название','товар','номенклатура','наименование товара'],
-    price:['цена','цена руб','стоимость','розничная цена'],
+    price:['цена продажи','цена','цена руб','стоимость','розничная цена'],
     variant:['вариант','вкус','характеристика']
 };
 const cleanHeader=s=>normSku(s).replace(/[().,₽]/g,' ').replace(/\s+/g,' ').trim();
-function columnFor(values,key){return values.findIndex(v=>stockAliases[key].includes(cleanHeader(v)));}
+function columnFor(values,key){
+    const headers=values.map(cleanHeader);
+    for(const alias of stockAliases[key]){const i=headers.indexOf(alias);if(i>=0)return i;}
+    return -1;
+}
+function warehouseRows(rows, cols, headers){
+    const names=headers.map(cleanHeader);
+    if(!['код','доступно','цена продажи','себестоимость','наименование'].every(k=>names.includes(k)))return rows;
+    return rows.filter(r=>{
+        const title=String(r.values[cols.title]??'').trim(), code=String(r.values[cols.sku]??'').trim();
+        const group=code && r.values.filter(v=>String(v??'').trim()!=='').length===1;
+        return !group && !(!code && /^итого:?$/i.test(title));
+    });
+}
 function skuIndex(items) {
     const map=new Map();
     for(const p of items){const key=normSku(p.sku);if(key)map.set(key,[...(map.get(key)||[]),p]);}
@@ -1124,12 +1238,13 @@ function inventoryPlan(rows,cols,items){
         const sku=get('sku'),key=normSku(sku),raw=get('stock'),qty=Number(raw.replace(',','.'));
         const matches=lookup.get(key)||[],p=matches[0],fl=variants(p),variant=get('variant');
         const index=p && variant?fl.findIndex(f=>normSku(f.name)===normSku(variant)):0;
-        const row={number:r.number,sku,key,qty,newName:get('title'),newPrice:get('price').replace(/\s/g,'').replace(',','.'),variant,index,p,chosen:!!p};
+        const row={number:r.number,sku,key,qty,newName:get('title'),newPrice:get('price').replace(/\s/g,'').replace(',','.'),variant,index,p,chosen:true};
         if(!sku)row.error='Нет кода';
         else if(!/^\d+(?:[.,]0+)?$/.test(raw)||!Number.isSafeInteger(qty))row.error='Остаток должен быть целым числом от 0';
+        else if(row.newPrice && (!Number.isFinite(Number(row.newPrice)) || Number(row.newPrice)<=0))row.error='Проверьте цену продажи';
         else if(matches.length>1)row.error='Код не уникален в каталоге';
         else if(p && ((fl.length>1&&!variant)||(variant && index<0)))row.error='Укажите существующий вариант товара';
-        else if(p){row.before=units(fl[index]);row.same=row.before===qty && p.in_stock===(onHand(p)-row.before+qty>0);}
+        else if(p){row.before=units(fl[index]);row.same=(!row.newName || row.newName===p.title) && (!row.newPrice || Number(row.newPrice)===Number(p.price)) && row.before===qty && p.in_stock===(onHand(p)-row.before+qty>0);}
         if(key){const token=JSON.stringify([key,p?index:'new']);if(seen.has(token)){row.error='Повтор в файле';seen.get(token).error=row.error;}else seen.set(token,row);}
         return row;
     });
@@ -1155,8 +1270,9 @@ function inventoryPlan(rows,cols,items){
         list.replaceChildren();
         for(const r of plans){
             const tr=node('tr'),check=node('input');check.type='checkbox';check.checked=!r.error&&!r.same&&r.chosen;check.disabled=!!r.error||!!r.same;check.ariaLabel='Применить строку '+r.number;
-            const td=node('td');td.append(check);tr.append(td,node('td',r.sku||'—'),node('td',r.p?.title||r.newName||'Новый товар'),node('td',r.error?'—':(r.p?r.before:'—')+' → '+r.qty));
+            const td=node('td');td.append(check);tr.append(td,node('td',r.sku||'—'),node('td',r.newName||r.p?.title||'Новый товар'),node('td',r.error?'—':(r.p?r.before:'—')+' → '+r.qty));
             const detail=node('td',r.error||(r.same?'Без изменений':r.p?'Обновить':'Добавить товар?'));
+            if(r.p&&!r.error && r.newPrice && Number(r.newPrice)!==Number(r.p.price))detail.append(node('small','Цена: '+r.p.price+' → '+r.newPrice+' ₽'));
             if(!r.p&&!r.error){
                 for(const [key,label] of [['newName','Наименование'],['newPrice','Цена, ₽']]){
                     const input=node('input');input.placeholder=label;input.ariaLabel=label+' для '+r.sku;input.value=r[key];input.oninput=()=>{r[key]=input.value.trim();};detail.append(input);
@@ -1170,7 +1286,7 @@ function inventoryPlan(rows,cols,items){
         const cols=Object.fromEntries(keys.map(k=>[k,Number(byId('map-'+k).value)]));
         const used=Object.values(cols).filter(n=>n>=0);
         if(cols.sku<0||cols.stock<0||new Set(used).size!==used.length){plans=[];draw();msg.textContent='Выберите отдельные столбцы для кода и остатка.';return;}
-        msg.textContent='';plans=inventoryPlan(rows.slice(Number(header.value)+1),cols,catalog);draw();
+        msg.textContent='';plans=inventoryPlan(warehouseRows(rows.slice(Number(header.value)+1),cols,rows[Number(header.value)].values),cols,catalog);draw();
     }
     function setMap(){
         const names=rows[Number(header.value)]?.values||[];mappings.replaceChildren();
@@ -1222,7 +1338,9 @@ function inventoryPlan(rows,cols,items){
                 const fl=p?variants(p).map(v=>({...v})):[];
                 fl[r.index]={name:r.variant||'Стандарт',...fl[r.index],stock:r.qty};
                 const body=p?Object.fromEntries(['title','price','sku','category','brand','image_url','description'].filter(k=>k in p).map(k=>[k,p[k]])):
-                    {title:r.newName,sku:r.sku,price:Number(r.newPrice.replace(',','.')),category:'',brand:'FIT PRO',image_url:'',description:''};
+                    {title:r.newName,sku:r.sku,price:Number(r.newPrice.replace(',','.')),category:'Все товары',brand:'FIT PRO',image_url:'',description:''};
+                if(r.newName)body.title=r.newName;
+                if(r.newPrice)body.price=Number(r.newPrice.replace(',','.'));
                 Object.assign(body,{flavors:fl,in_stock:fl.some(v=>units(v)>0)});
                 const res=await fetch(p?'/api/products/'+encodeURIComponent(p.id):'/api/products',{method:p?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
                 if(!res.ok)throw Error('Сервер отклонил строку '+r.number+' ('+r.sku+').');
@@ -1238,7 +1356,7 @@ function inventoryPlan(rows,cols,items){
                 const current=skuIndex(catalog);
                 const mismatches=saved.filter(r=>{
                     const matches=current.get(r.key)||[];
-                    return matches.length!==1 || !variants(matches[0])[r.index] || units(variants(matches[0])[r.index])!==r.qty;
+                    return matches.length!==1 || !variants(matches[0])[r.index] || units(variants(matches[0])[r.index])!==r.qty || (r.newName && matches[0].title!==r.newName) || (r.newPrice && Number(matches[0].price)!==Number(r.newPrice.replace(',','.')));
                 });
                 if(mismatches.length)verification=' Проверка остатка не прошла: '+mismatches.map(r=>r.sku).join(', ')+'.';
                 preview();await loadAllAdminData();await loadStoreData();
@@ -1251,4 +1369,5 @@ function inventoryPlan(rows,cols,items){
 </script>
 </body>
 </html>
+
 
