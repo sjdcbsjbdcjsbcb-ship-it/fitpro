@@ -351,10 +351,11 @@ function featureLine(s) {
         s.taste].filter(Boolean).join(' · ');
 }
 function availability(p) {
-    if(onHand(p)) return 'В наличии';
-    const s=specOf(p);
-    if(!s.expected && !s.eta) return 'Нет в наличии';
-    return s.eta ? 'Ожидается '+s.eta.split('-').reverse().join('.') : 'Ожидается';
+    const s = specOf(p);
+    const inStock = onHand(p) > 0;
+    if (!s.expected && !s.eta) return inStock ? 'В наличии' : 'Нет в наличии';
+    const arrival = s.eta ? 'Ожидается ' + s.eta.split('-').reverse().join('.') : 'Ожидается';
+    return inStock ? 'В наличии · ' + arrival : arrival;
 }
 function availabilityBadge(p) {
     return node('span',availability(p),'availability '+(onHand(p)?'available':''));
