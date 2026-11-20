@@ -187,7 +187,7 @@
 #modal-prod-cat{font-size:13px;color:#56654e}#modal-prod-title{font-size:clamp(22px,3vw,30px);font-weight:750;line-height:1.15;margin:6px 0 12px}
 #modal-prod-price{font-size:26px;font-weight:750}#modal-action-area{margin-top:12px}#modal-action-area .shop-buy,#modal-action-area .shop-inquire{min-height:44px;font-size:15px}
 .product-copy{margin:0 24px 22px;border-top:1px solid #e2e8df}
-.product-copy summary{cursor:pointer;padding:16px 0 10px;font-size:16px;font-weight:650}
+.product-copy h3{padding:16px 0 10px;font-size:16px;font-weight:650}
 #modal-prod-desc{max-width:72ch;font-size:15px;line-height:1.6;color:#344054;overflow-wrap:anywhere}
 #modal-prod-desc p{margin:0 0 .75em}#modal-prod-desc ul,#modal-prod-desc ol{padding-left:1.4em}#modal-prod-desc ul{list-style:disc}#modal-prod-desc ol{list-style:decimal}
 @media(max-width:600px){.product-sheet-bar{padding:6px 14px}.product-overview{padding:14px;grid-template-columns:1fr;gap:14px}#product-modal #modal-gallery img{height:clamp(155px,27dvh,220px)!important}.product-copy{margin:0 14px 14px}}
@@ -309,7 +309,7 @@
                 <div id="modal-gallery"></div>
                 <div class="product-purchase"><div id="modal-prod-cat"></div><h2 id="modal-prod-title"></h2><div id="modal-prod-price"></div><div id="modal-action-area"></div></div>
             </div>
-            <details class="product-copy"><summary>Описание товара</summary><div id="modal-prod-desc"></div></details>
+            <section class="product-copy"><h3>Описание товара</h3><div id="modal-prod-desc"></div></section>
         </div>
     </div>
     <div id="cart-drawer" class="fixed inset-0 bg-black/50 z-50 hidden justify-end">
@@ -515,9 +515,7 @@ function openProductModal(id, initialPhoto=0) {
     }
     const sheet=byId('product-modal').querySelector('.product-sheet');
     const description=byId('modal-prod-desc').textContent.trim();
-    const details=sheet.querySelector('.product-copy');
-    details.hidden=!description;
-    details.open=description.length>0 && description.length<=420;
+    sheet.querySelector('.product-copy').hidden=!description;
     byId('product-modal').classList.replace('hidden','flex');
     sheet.scrollTop=0;
 }
