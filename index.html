@@ -192,6 +192,7 @@
 #modal-prod-desc p{margin:0 0 .75em}#modal-prod-desc ul,#modal-prod-desc ol{padding-left:1.4em}#modal-prod-desc ul{list-style:disc}#modal-prod-desc ol{list-style:decimal}
 @media(max-width:600px){.product-sheet-bar{padding:6px 14px}.product-overview{padding:14px;grid-template-columns:1fr;gap:14px}#product-modal #modal-gallery img{height:clamp(155px,27dvh,220px)!important}.product-copy{margin:0 14px 14px}}
 </style>
+<style>html:not([data-admin-verified="1"]) #view-admin { display:none !important; }</style>
 </head>
 <body class="antialiased min-h-screen flex flex-col">
     <div id="admin-top-bar" class="hidden bg-slate-900 text-white text-xs py-2 px-3 sm:px-6 sticky top-0 z-50 shadow-md">
@@ -559,16 +560,47 @@ function openProductModal(id, initialPhoto=0) {
             }catch{showToast('Не удалось подтвердить заказ. Свяжитесь с менеджером.');}
             finally{drawer.inert=false;ordering=false;}
         }
+        const entryUrl = new URL(location.href);
+        const adminEntry = entryUrl.searchParams.has('admin') || entryUrl.searchParams.has('admin_tab');
+        if (adminEntry) {
+            entryUrl.searchParams.set('admin', '1');
+            history.replaceState(history.state, '', entryUrl);
+        }
+        let currentViewRequest = 0;
+
         function selectMainView(view) {
             const url = new URL(location.href);
-            if (view === 'store') url.searchParams.delete('admin_tab');
+            if (view === 'admin') url.searchParams.set('admin', '1');
+            else {
+                url.searchParams.delete('admin');
+                url.searchParams.delete('admin_tab');
+            }
             history.replaceState({ ...history.state, fitproView: view }, '', url);
             switchMainView(view);
         }
 
-        function switchMainView(requested) {
-            // Delayed admin initialization must respect the view selected in this history entry.
-            const view = history.state?.fitproView === 'store' ? 'store' : requested;
+        async function switchMainView(view) {
+            const sequence = ++currentViewRequest;
+            const gate = document.documentElement;
+            delete gate.dataset.adminVerified;
+            if (view === 'admin') {
+                const headers = {};
+                const signed = window.Telegram?.WebApp?.initData;
+                if (signed) headers['X-Fitpro-Telegram'] = signed;
+                try {
+                    const response = await fetch('/api/admin/session', {credentials:'same-origin', cache:'no-store', headers});
+                    if (!response.ok || (await response.json()).authenticated !== true) throw Error();
+                } catch {
+                    if (sequence !== currentViewRequest) return;
+                    showToast('Вход в админку не подтверждён.');
+                    view = 'store';
+                }
+                if (sequence !== currentViewRequest) return;
+                if (view === 'admin') {
+                    gate.dataset.adminVerified = '1';
+                    document.getElementById('admin-top-bar').classList.remove('hidden');
+                }
+            }
             for (const name of ['store', 'admin']) {
                 const active = name === view;
                 document.getElementById('view-' + name).classList.toggle('hidden', !active);
@@ -578,9 +610,14 @@ function openProductModal(id, initialPhoto=0) {
                 button.setAttribute('aria-pressed', String(active));
             }
         }
-        if (history.state?.fitproView === 'admin' && !document.getElementById('admin-top-bar').classList.contains('hidden')) {
-            switchMainView('admin');
-        }
+        if (adminEntry || history.state?.fitproView === 'admin') switchMainView('admin');
+        window.addEventListener('pagehide', () => {
+            ++currentViewRequest;
+            delete document.documentElement.dataset.adminVerified;
+        });
+        window.addEventListener('pageshow', event => {
+            if (event.persisted && (new URL(location.href).searchParams.has('admin') || history.state?.fitproView === 'admin')) switchMainView('admin');
+        });
         loadStoreData();
     </script>
 <script src="/admin.js?v=34"></script>
